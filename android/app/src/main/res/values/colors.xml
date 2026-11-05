@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_primary">#FF1B6B3A</color>
+    <color name="brand_primary_night">#FF7BD39A</color>
+    <color name="on_brand_night">#FF003918</color>
+
+    <color name="overlay_background">#FF121A16</color>
+    <color name="overlay_text">#FFFFFFFF</color>
+    <color name="overlay_quote">#FFB8F0CC</color>
+    <color name="overlay_accent">#FF7BD39A</color>
+</resources>

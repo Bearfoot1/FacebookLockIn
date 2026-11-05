@@ -13,7 +13,7 @@ Three surfaces:
 | Chrome / Edge extension (desktop) | `extension/` | Built, tested in Chromium |
 | Shared quotes and tips | `shared/motivation.json` → `scripts/generate-motivation.mjs` | Built, generates both platforms |
 | Android core library (pure Kotlin/JVM, the rules) | `core/` | Built, 163 JVM tests pass |
-| Android app (AccessibilityService, overlay, UI) | `android/` | Source written, NOT compiled or run (see below) |
+| Android app (AccessibilityService, overlay, UI) | `android/` | Source written; compile-checked with kotlinc against framework stubs; NOT built with Gradle or run on a device |
 | Phone browsers (Chrome, Firefox, Samsung, etc. on Android) | `android/` (URL-bar reading in the accessibility service) | Same status as the Android app |
 
 Phone web is handled by the Android app reading the URL bar of known browsers. Android Chrome has no extension support, so the extension cannot run on the phone.
@@ -71,13 +71,22 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 - Marketplace detection on the Facebook Android app is heuristic.
 - Accessibility-based blocking on Android needs the user to grant the Accessibility permission. Google Play review for that permission was not considered.
 
-## Android status (update when the agents finish)
+## Android status
 
-Two agents were running at the time of writing:
-- core agent: building `core/` (done, 161 tests pass) and adding `TipRotator` and `Motivation.kt` (generated, present).
-- Android app agent: writing `android/` with the AccessibilityService, overlay, prefs, and the main screen. It was told to compile-check against framework jars from Maven Central if feasible, and to report honestly if not.
+Source is in `android/` (20 files, committed). Verification so far:
 
-**Action when they finish:** read each agent's final report, confirm what was compiled (if anything), and record the result here. Do not mark the Android app as verified unless it was compiled and run.
+- **Compile check (partial, done):** Kotlin 2.1.20 compiler from Maven Central, run against `org.robolectric:android-all` (API 35), compiling `core/` and `android/` together. Exit 0, no errors. The androidx and Material classes are stubs (not on Maven Central), and `R.kt` was generated from the res files by a script, not by aapt.
+- **Not done:** Gradle/AGP build, aapt, lint, manifest merge, any run on a device or emulator. There is no Gradle wrapper; README gives the command.
+- **Version note:** core and android pin Kotlin 2.1.20 (not 2.0.x), because two Kotlin Gradle plugin versions in one build fail to configure. Reasoned, not tested with Gradle.
+- **Behaviour choices:** "Go to Marketplace" opens `https://www.facebook.com/marketplace/` inside the Facebook app (a bare launch intent lands on the feed, which would be blocked again), with fallbacks to the Facebook app launch intent, then the browser. The overlay is focusable so the hardware back key goes to "Go back". Dark theme is in `values-night/themes.xml`. Tips and quotes come from core only; no quotes are hard-coded in Android.
+- **lastTip:** kept in `LockPrefs` (key `last_tip`, default -1), written with `lastQuote` by `recordBlock`. It is not a field of `LockState`.
+
+**Needs a real device before it can be called working:**
+- Whether the Accessibility event fires on each Facebook screen, and whether Marketplace is detected. The "starts with Marketplace" heuristic may block item pages.
+- URL-bar text per browser and per phone maker. Chrome may show only the host in its simplified URL.
+- Overlay behaviour: touch blocking, the back key, re-showing on navigation, removal on leaving the app.
+- Gradle sync with JDK 21 and core's `jvmToolchain(21)`.
+- Google Play policy for accessibility use (not reviewed).
 
 ## Next steps
 

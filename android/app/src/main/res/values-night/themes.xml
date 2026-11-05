@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.LockIn" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/brand_primary_night</item>
+        <item name="colorOnPrimary">@color/on_brand_night</item>
+    </style>
+</resources>

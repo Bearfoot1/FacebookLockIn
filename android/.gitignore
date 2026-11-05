@@ -1,0 +1,18 @@
+# Gradle and build output
+.gradle/
+build/
+*/build/
+.cxx/
+captures/
+*.apk
+*.aab
+
+# Local machine settings (SDK path, signing)
+local.properties
+*.jks
+*.keystore
+
+# IDE
+.idea/
+*.iml
+.DS_Store
