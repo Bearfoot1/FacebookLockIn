@@ -96,7 +96,7 @@ Source is in `android/` (20 files, committed). Verification so far:
 4. Confirm the allowed legal and recovery URLs on facebook.com.
 5. Decide whether to allow `/messages` for Marketplace buyers.
 6. Commit the repo (no commit has been made since the initial README scaffold). Use the session's attribution trailers.
-7. Push to a GitHub repo once it exists. The session cannot create repos (the GitHub API refuses it), so it has to be created by the owner.
+7. Pushed to https://github.com/Bearfoot1/FacebookLockIn (branch main). Keep pushing from this local repo; remote: origin.
 
 ## Files
 
