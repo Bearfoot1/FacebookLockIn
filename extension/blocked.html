@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Locked: Go to Marketplace</title>
+    <link rel="stylesheet" href="blocked.css" />
+  </head>
+  <body>
+    <main class="card">
+      <p class="eyebrow">Facebook is locked</p>
+      <h1>This page is not part of your plan.</h1>
+      <blockquote id="quote" class="quote">Loading your reminder…</blockquote>
+      <p class="tip"><strong>Tip:</strong> <span id="tip">…</span></p>
+      <p class="sub">Only Marketplace and the pages you need to log in are open. Go make some money.</p>
+
+      <a class="btn primary" id="go-marketplace" href="https://www.facebook.com/marketplace/">Open Marketplace</a>
+
+      <form id="search-form" class="search" autocomplete="off">
+        <label for="search-input">Search Marketplace</label>
+        <div class="row">
+          <input id="search-input" name="query" type="search" placeholder="What are you selling or buying?" />
+          <button type="submit" class="btn">Search</button>
+        </div>
+      </form>
+
+      <p class="count">Locked attempts so far: <span id="count">0</span></p>
+    </main>
+    <script src="motivation.js"></script>
+    <script src="rules.js"></script>
+    <script src="blocked.js"></script>
+  </body>
+</html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Marketplace Lock-In</title>
+    <link rel="stylesheet" href="blocked.css" />
+    <style>
+      body {
+        align-items: flex-start;
+      }
+      .card {
+        max-width: 340px;
+        padding: 18px;
+      }
+      h1 {
+        font-size: 18px;
+        margin-bottom: 8px;
+      }
+      .status {
+        font-weight: 600;
+        margin: 0 0 8px;
+      }
+      .on {
+        color: var(--accent);
+      }
+      .off {
+        color: #c0392b;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .stack .btn {
+        text-align: center;
+      }
+      .danger {
+        color: #c0392b;
+      }
+      .hidden {
+        display: none;
+      }
+      .confirm input {
+        width: 100%;
+        margin-top: 8px;
+      }
+      .note {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+        margin: 10px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <p class="eyebrow">Marketplace Lock-In</p>
+      <p class="status" id="status">Checking…</p>
+      <p class="note">Only Facebook Marketplace and the log-in pages are open. Everything else on facebook.com is blocked.</p>
+      <p class="note">Locked attempts so far: <span id="count">0</span></p>
+
+      <div class="stack">
+        <a class="btn primary" href="https://www.facebook.com/marketplace/" target="_blank" rel="noopener">Open Marketplace</a>
+        <button class="btn danger" id="turn-off">Turn the lock off</button>
+      </div>
+
+      <div class="confirm hidden" id="confirm">
+        <p class="note">To turn it off, type exactly: <strong>I choose distraction</strong></p>
+        <input id="confirm-input" type="text" autocomplete="off" />
+        <div class="stack">
+          <button class="btn danger" id="confirm-off" disabled>Confirm turn off</button>
+          <button class="btn" id="cancel">Cancel</button>
+        </div>
+      </div>
+
+      <div class="stack hidden" id="on-controls">
+        <button class="btn" id="turn-on">Turn the lock back on</button>
+      </div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

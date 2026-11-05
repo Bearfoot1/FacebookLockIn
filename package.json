@@ -1,0 +1,19 @@
+{
+  "name": "facebook-lock-in",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Marketplace Lock-In: a Chrome/Edge extension that locks facebook.com down to Marketplace and login pages.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/rules.test.mjs",
+    "e2e": "node tests/e2e.mjs",
+    "check": "npm test && npm run e2e"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

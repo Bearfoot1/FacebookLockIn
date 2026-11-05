@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Marketplace Lock-In",
+  "version": "1.0.0",
+  "description": "Locks facebook.com down to Marketplace and the pages you need to log in. Everything else is blocked.",
+  "permissions": ["declarativeNetRequest", "storage"],
+  "host_permissions": ["*://*.facebook.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.facebook.com/*"],
+      "js": ["rules.js", "content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": ["*://*.facebook.com/*"],
+      "js": ["main-world.js"],
+      "world": "MAIN",
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Marketplace Lock-In"
+  }
+}
