@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import app.lockin.core.AppRules
 import app.lockin.core.QuoteRotator
 import app.lockin.core.TipRotator
@@ -29,6 +30,8 @@ class LockAccessibilityService : AccessibilityService() {
     private var overlay: BlockOverlay? = null
     private var shownKey: String? = null
     private var lastContentEvaluation = 0L
+    /** Label of the bottom tab last seen selected in the Facebook app; null after leaving it. */
+    private var lastSelectedTab: String? = null
 
     private val lockListener = LockPrefs.Listener { enabled ->
         if (!enabled) hideOverlay()
@@ -81,12 +84,35 @@ class LockAccessibilityService : AccessibilityService() {
             lastContentEvaluation = now
         }
 
-        val root = rootInActiveWindow ?: return
+        val root = topAppRoot() ?: return
         try {
             evaluate(root)
         } finally {
             recycleNode(root)
         }
+    }
+
+    /**
+     * Root of the topmost app window. Not rootInActiveWindow: the block overlay takes
+     * focus (for the back key), so the active window is the overlay itself and the
+     * Facebook screen under it would never be checked again.
+     */
+    @Suppress("DEPRECATION")
+    private fun topAppRoot(): AccessibilityNodeInfo? {
+        val list = try {
+            windows
+        } catch (e: RuntimeException) {
+            emptyList()
+        }
+        var found: AccessibilityNodeInfo? = null
+        // Windows are listed top first.
+        for (window in list) {
+            if (found == null && window.type == AccessibilityWindowInfo.TYPE_APPLICATION) {
+                found = window.root
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) window.recycle()
+        }
+        return found ?: rootInActiveWindow
     }
 
     private fun evaluate(root: AccessibilityNodeInfo) {
@@ -98,14 +124,19 @@ class LockAccessibilityService : AccessibilityService() {
             AppRules.isFacebookPackage(pkg) -> evaluateFacebook(pkg, root)
             AppRules.isBrowserPackage(pkg) -> evaluateBrowser(pkg, root)
             // Launcher, other apps: the user has left Facebook and the browsers.
-            else -> hideOverlay()
+            // Forget the last tab so a link opened later does not inherit Marketplace.
+            else -> {
+                lastSelectedTab = null
+                hideOverlay()
+            }
         }
     }
 
     private fun evaluateFacebook(pkg: String, root: AccessibilityNodeInfo) {
         // Messenger is always blocked, so its text is not needed.
-        val texts = if (pkg == MESSENGER_PACKAGE) emptyList() else visibleTexts(root)
-        if (AppRules.isBlockedAppScreen(pkg, texts)) {
+        val screen = if (pkg == MESSENGER_PACKAGE) ScreenInfo(emptyList(), null) else readScreen(root)
+        if (screen.selectedTab != null) lastSelectedTab = screen.selectedTab
+        if (AppRules.isBlockedAppScreen(pkg, screen.texts, screen.selectedTab, lastSelectedTab)) {
             showOverlay("app:$pkg")
         } else {
             hideOverlay()
@@ -114,27 +145,35 @@ class LockAccessibilityService : AccessibilityService() {
 
     private fun evaluateBrowser(pkg: String, root: AccessibilityNodeInfo) {
         // If the URL bar cannot be read, the browser is treated as allowed (fail open).
+        // A bare host ("m.facebook.com", how Samsung Internet shows every page) is
+        // allowed too: the page cannot be told apart from Marketplace.
         val url = readUrlBar(pkg, root)
-        if (url != null && WebRules.isLockedUrl(url)) {
+        if (url != null && !WebRules.isHostOnlyDisplay(url) && WebRules.isLockedUrl(url)) {
             showOverlay("web:$pkg:$url")
         } else {
             hideOverlay()
         }
     }
 
-    /** Collects text and content descriptions. Stops early once the Marketplace title is seen. */
-    private fun visibleTexts(root: AccessibilityNodeInfo): List<String> {
+    private class ScreenInfo(val texts: List<String>, val selectedTab: String?)
+
+    /**
+     * Collects text and content descriptions, and the label of the selected bottom tab.
+     * Walks the whole tree (up to MAX_NODES): the tab bar comes late in tree order.
+     */
+    private fun readScreen(root: AccessibilityNodeInfo): ScreenInfo {
         val texts = ArrayList<String>()
+        var selectedTab: String? = null
         walkTree(root) { node ->
             for (raw in listOf(node.text, node.contentDescription)) {
                 val text = raw?.toString()?.trim()
                 if (text.isNullOrEmpty()) continue
                 texts += text
-                if (AppRules.isMarketplaceScreen(listOf(text))) return@walkTree true
+                if (selectedTab == null && node.isSelected) selectedTab = AppRules.tabLabel(text)
             }
             false
         }
-        return texts
+        return ScreenInfo(texts, selectedTab)
     }
 
     /**
@@ -204,9 +243,15 @@ class LockAccessibilityService : AccessibilityService() {
 
         val (quoteIndex, quote) = quotes.next(prefs.lastQuote)
         val (tipIndex, tip) = tips.next(prefs.lastTip)
-        val view = BlockOverlay(this, quote, tip) {
-            performGlobalAction(GLOBAL_ACTION_BACK)
-        }
+        val view = BlockOverlay(
+            this, quote, tip,
+            onGoBack = { performGlobalAction(GLOBAL_ACTION_BACK) },
+            // Hide first so Marketplace is visible; the next event re-shows it if still blocked.
+            onGoMarketplace = {
+                hideOverlay()
+                MarketplaceLauncher.open(this)
+            },
+        )
         if (!view.show()) return
 
         overlay = view
@@ -224,7 +269,7 @@ class LockAccessibilityService : AccessibilityService() {
         pkg != null && (AppRules.isFacebookPackage(pkg) || AppRules.isBrowserPackage(pkg))
 
     companion object {
-        private const val MAX_NODES = 400
+        private const val MAX_NODES = 1500
         private const val MAX_DEPTH = 30
         private const val CONTENT_THROTTLE_MS = 250L
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"

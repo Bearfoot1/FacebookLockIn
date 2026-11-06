@@ -18,12 +18,14 @@ import com.google.android.material.button.MaterialButton
  * @param quote motivational quote text (from app.lockin.core.QuoteRotator)
  * @param tip short tip text (from app.lockin.core.TipRotator), shown under the quote
  * @param onGoBack called for the Go back button and the hardware back key
+ * @param onGoMarketplace called for the Go to Marketplace button
  */
 class BlockOverlay(
     service: AccessibilityService,
     quote: String,
     tip: String,
     private val onGoBack: () -> Unit,
+    private val onGoMarketplace: () -> Unit,
 ) {
     private val windowManager: WindowManager =
         checkNotNull(service.getSystemService(WindowManager::class.java)) { "WindowManager unavailable" }
@@ -34,9 +36,7 @@ class BlockOverlay(
     init {
         checkNotNull(root.findViewById<TextView>(R.id.quote_text)).text = quote
         checkNotNull(root.findViewById<TextView>(R.id.tip_text)).text = themed.getString(R.string.overlay_tip, tip)
-        checkNotNull(root.findViewById<MaterialButton>(R.id.go_marketplace)).setOnClickListener {
-            MarketplaceLauncher.open(themed)
-        }
+        checkNotNull(root.findViewById<MaterialButton>(R.id.go_marketplace)).setOnClickListener { onGoMarketplace() }
         checkNotNull(root.findViewById<MaterialButton>(R.id.go_back)).setOnClickListener { onGoBack() }
 
         // Consume touches that reach the background so the blocked screen is unusable.

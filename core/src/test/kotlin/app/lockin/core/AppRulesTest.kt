@@ -9,6 +9,59 @@ import org.junit.jupiter.params.provider.ValueSource
 
 class AppRulesTest {
 
+    // Real tab bar descriptions from the Facebook app (Galaxy S9+, Android 10, 2026-11-05).
+    private val tabBar = listOf(
+        "Home, tab 1 of 6", "Reels, tab 2 of 6", "Friends, tab 3 of 6",
+        "Marketplace, tab 4 of 6, 1 new", "Notifications, tab 5 of 6", "Menu, tab 6 of 6",
+    )
+
+    @Test
+    fun tabLabelParsesTabDescriptions() {
+        assertEquals("Home", AppRules.tabLabel("Home, tab 1 of 6"))
+        assertEquals("Marketplace", AppRules.tabLabel("Marketplace, tab 4 of 6, 1 new"))
+        assertEquals(null, AppRules.tabLabel("Marketplace"))
+        assertEquals(null, AppRules.tabLabel("What's on your mind?"))
+    }
+
+    @Test
+    fun feedWithTabBarIsBlocked() {
+        // The tab bar's "Marketplace, tab 4 of 6" text must not unlock the feed.
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar, selectedTab = "Home"))
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar + "Marketplace", selectedTab = "Reels"))
+    }
+
+    @Test
+    fun marketplaceTabIsAllowed() {
+        assertFalse(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar, selectedTab = "Marketplace"))
+    }
+
+    // Real item page texts (no tab bar, no "Marketplace" title).
+    private val itemPage = listOf("Close", "Product Image,1 of 1", "Lord of the Rings Cartoon VHS", "$5", "Message seller")
+
+    @Test
+    fun screenWithoutTabBarFollowsLastTab() {
+        assertFalse(AppRules.isBlockedAppScreen("com.facebook.katana", itemPage, lastSelectedTab = "Marketplace"))
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", itemPage, lastSelectedTab = "Home"))
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", itemPage))
+    }
+
+    @Test
+    fun visibleTabBarOverridesLastTab() {
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar, selectedTab = "Reels", lastSelectedTab = "Marketplace"))
+    }
+
+    @Test
+    fun messengerBlockedEvenFromMarketplace() {
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.orca", itemPage, lastSelectedTab = "Marketplace"))
+    }
+
+    @Test
+    fun tabDescriptionsAloneDoNotCountAsMarketplace() {
+        // No selected tab known: the tab bar text is ignored by the heuristic.
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar))
+        assertFalse(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar + "Marketplace"))
+    }
+
     @Test
     fun facebookPackagesMatchSpec() {
         assertEquals(

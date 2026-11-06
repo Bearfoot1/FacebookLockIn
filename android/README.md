@@ -13,7 +13,7 @@ network calls, no analytics, and no permissions other than Accessibility.
 ## Requirements
 
 - Android Studio Ladybug (2024.2) or newer, or any Gradle 8.9+ with the Android SDK
-- JDK 21 (the `core` library sets `jvmToolchain(21)`; Android Studio's bundled JDK 21 works)
+- JDK 17 (the `core` library and the app set `jvmToolchain(17)`)
 - Android SDK Platform 35 and Build-Tools for AGP 8.7.3
 - A phone on Android 8.0 (API 26) or newer
 
@@ -23,11 +23,10 @@ network calls, no analytics, and no permissions other than Accessibility.
 2. Let Gradle sync. It also uses the `../core` library, so keep the repo layout intact.
 3. Run the `app` configuration on a device, or *Build > Build APK(s)*.
 
-Command line (needs a Gradle wrapper, which is not committed yet):
+Command line (the Gradle wrapper is committed; create `local.properties` with `sdk.dir=<path to the Android SDK>` first):
 
 ```bash
 cd android
-gradle wrapper --gradle-version 8.9   # once, with a local Gradle 8.9+
 ./gradlew :app:assembleDebug
 ```
 
@@ -56,10 +55,12 @@ disables the lock. The app shows this on its main screen.
 - **Accessibility permission is required**, and Android shows it as a powerful
   permission. Anyone with access to Settings can turn the service off. The app
   does not defend against that.
-- **Marketplace detection in the Facebook app is a heuristic.** A screen counts as
-  Marketplace when a visible text starts with the word "Marketplace". Item pages
-  and some Marketplace screens may not show that word, so they could be blocked.
-  Check this on a real device with your own account and report what you see.
+- **Marketplace detection in the Facebook app uses the bottom tab bar.** The screen
+  is allowed when the Marketplace tab is selected. Screens without the tab bar (item
+  pages) are allowed only if you came from the Marketplace tab. Opening Facebook
+  straight onto such a screen shows the block screen; tap Go to Marketplace.
+- **Browsers that show only the site name** (Samsung Internet shows "m.facebook.com"
+  on every page) are not locked, because the page cannot be told apart.
 - **Blank or loading screens** of the Facebook app are blocked until their text appears.
 - **URL bars differ by browser and OEM.** Chrome, Firefox and Samsung Internet use
   known view ids; other browsers use a scan for an editable URL-like node. If the URL bar

@@ -1,6 +1,6 @@
 # Handover notes: facebook-lock-in
 
-Last updated: session of 2026-11-05. Read this first. The README is the user guide; this file is the status and decisions.
+Last updated: 2026-11-05 (phone test session). Read this first. The README is the user guide; this file is the status and decisions.
 
 ## What the project is
 
@@ -12,9 +12,33 @@ Three surfaces:
 | --- | --- | --- |
 | Chrome / Edge extension (desktop) | `extension/` | Built, tested in Chromium |
 | Shared quotes and tips | `shared/motivation.json` → `scripts/generate-motivation.mjs` | Built, generates both platforms |
-| Android core library (pure Kotlin/JVM, the rules) | `core/` | Built, 163 JVM tests pass |
-| Android app (AccessibilityService, overlay, UI) | `android/` | Source written; compile-checked with kotlinc against framework stubs; NOT built with Gradle or run on a device |
-| Phone browsers (Chrome, Firefox, Samsung, etc. on Android) | `android/` (URL-bar reading in the accessibility service) | Same status as the Android app |
+| Android core library (pure Kotlin/JVM, the rules) | `core/` | Built, 173 JVM tests pass |
+| Android app (AccessibilityService, overlay, UI) | `android/` | Built with Gradle; tested on a real phone (see "Phone test") |
+| Phone browsers (Chrome, Firefox, Samsung, etc. on Android) | `android/` (URL-bar reading in the accessibility service) | Samsung Internet tested; Chrome, Firefox not yet |
+
+## Phone test (2026-11-05)
+
+Galaxy S9+ (SM-G965U1), Android 10, debug APK installed over adb. BlockSite and ReelBlock accessibility services were also on. Chrome is disabled on that phone, so it was not tested.
+
+| Check | Result |
+| --- | --- |
+| Main screen, service status | Works |
+| Facebook app: Home feed, Reels tab | Blocked |
+| Block screen "Go to Marketplace" | Opens Marketplace in the Facebook app, overlay goes away |
+| Marketplace tab, scrolling | Allowed |
+| Marketplace item page (no tab bar) | Allowed when opened from the Marketplace tab |
+| Reopening Facebook straight onto an item page | Blocked (last tab is forgotten on leaving Facebook); Go to Marketplace recovers |
+| Messenger app | Blocked |
+| Samsung Internet, any Facebook page | Allowed (host-only URL bar, owner's choice, see decisions) |
+| Lock off with "I choose distraction", back on | Works |
+
+Bugs found and fixed in that test:
+
+- **Every Facebook screen counted as Marketplace.** The bottom tab bar is always on screen with the description "Marketplace, tab 4 of 6" (plus ", 1 new" sometimes), which matched the text heuristic. Now the selected tab decides (`AppRules.tabLabel`, `selectedTab`). Screens without a tab bar follow the last selected tab (`lastSelectedTab`), which is reset when another app comes to the front.
+- **The overlay never went away.** It takes focus (for the back key), so `rootInActiveWindow` was the overlay and the Facebook window under it was never checked again. The service now reads the topmost `TYPE_APPLICATION` window (`flagRetrieveInteractiveWindows`, `typeWindowsChanged`).
+- **"Go to Marketplace" left the overlay up.** It now hides the overlay before opening Marketplace; the service re-shows it if the screen is still blocked.
+- **Samsung Internet URL bar text starts with U+200E** (left-to-right mark). The URL failed to parse and was allowed. `WebRules` now strips Unicode format characters, and host-less input that mentions Facebook fails closed.
+- Build fixes: the accessibility flags lacked the `flag` prefix (aapt error); core declared the Kotlin plugin version a second time (fails inside the android build, so the version moved to `core/settings.gradle.kts`); Java and Kotlin JVM targets differed (now 17 everywhere, `jvmToolchain(17)`).
 
 Phone web is handled by the Android app reading the URL bar of known browsers. Android Chrome has no extension support, so the extension cannot run on the phone.
 
@@ -30,7 +54,11 @@ npm run e2e            # loads the extension into Chromium; needs root (port 443
 node scripts/generate-motivation.mjs
 
 # Core (Android rules, pure Kotlin)
-cd core && gradle test # 163 tests
+cd core && gradle test # 173 tests
+
+# Android app (JDK 17; android/local.properties needs sdk.dir)
+cd android && ./gradlew :core:test :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → Load unpacked → `extension/`.
@@ -45,9 +73,9 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 
 ## Not verified
 
-- **No APK was built.** The Android SDK cannot be downloaded here (dl.google.com is blocked by egress policy). Android code has not been compiled against the real SDK.
-- **Nothing has run on a phone.** Accessibility events, the overlay, and the URL bar reading are untested on any device or emulator.
-- Facebook's own Android screens are not known in detail. Marketplace detection in the Facebook app is a text heuristic (`AppRules.isMarketplaceScreen`) and will be wrong sometimes.
+- Chrome, Firefox and other phone browsers (Chrome was disabled on the test phone). Chrome's simplified URL may show only the host, which is now allowed (see decisions).
+- Marketplace search, the Sell flow, and Marketplace screens reached without the tab bar from other routes (notifications, shared links).
+- Other phones, other Android versions, other Facebook app versions. The tab bar description format ("X, tab N of M") is from one phone.
 
 ## Key decisions (and why)
 
@@ -60,6 +88,8 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 - **Quotes and tips are generated** from one JSON file (49 quotes, 32 tips), so the extension and Android stay identical. Quotes are original, with no attributions to real people. Eight of the quotes name Marketplace explicitly; the rest are general motivation.
 - `extension/motivation.js` is a generated file; the core agent regenerated it too. It is identical to the output of the script, so nothing is out of step.
 - **Core library is pure Kotlin** (no Android imports) so its rules can be unit-tested on the JVM.
+- **Facebook app: the selected bottom tab decides.** A screen with no tab bar (item pages, full-screen posts) follows the last tab seen selected, and that memory is cleared when another app comes to the front. The old text heuristic is only the last fallback.
+- **Browser URL bars that show only a host are allowed** (owner's choice, 2026-11-05). Samsung Internet shows "m.facebook.com" on every Facebook page, so the page can't be judged. The alternative, blocking every Facebook page in that browser, was turned down. This means the full Facebook site is reachable in Samsung Internet.
 
 ## Open issues and limits
 
@@ -68,35 +98,28 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 - Log in with Facebook on other sites (`facebook.com/dialog/oauth`) is blocked. Turn the lock off to use it.
 - The allow-list paths (legal/recovery) were chosen from memory. Check the real Facebook URLs before relying on them: e.g. `/legal/`, `/communitystandards/`, `/hacked/` are not allowed.
 - The extension does not cover the Facebook mobile app or other browsers.
-- Marketplace detection on the Facebook Android app is heuristic.
+- Marketplace detection on the Facebook Android app relies on the tab bar (see decisions).
 - Accessibility-based blocking on Android needs the user to grant the Accessibility permission. Google Play review for that permission was not considered.
+- Samsung Internet (and any browser that hides the path) is an open way to the whole Facebook site, by choice.
+- A notification that opens a Facebook post while the last tab was Marketplace (the shade does not reset the last tab) would be allowed.
+- The main screen still shows "Turn on accessibility service" when the service is already on.
 
 ## Android status
 
-Source is in `android/` (20 files, committed). Verification so far:
+Builds with Gradle 8.11.1, AGP 8.7.3, Kotlin 2.1.20, JDK 17 (`./gradlew :app:assembleDebug` from `android/`). The Gradle wrapper is committed. `android/local.properties` (not committed) needs `sdk.dir`. Tested on a phone: see "Phone test".
 
-- **Compile check (partial, done):** Kotlin 2.1.20 compiler from Maven Central, run against `org.robolectric:android-all` (API 35), compiling `core/` and `android/` together. Exit 0, no errors. The androidx and Material classes are stubs (not on Maven Central), and `R.kt` was generated from the res files by a script, not by aapt.
-- **Not done:** Gradle/AGP build, aapt, lint, manifest merge, any run on a device or emulator. There is no Gradle wrapper; README gives the command.
-- **Version note:** core and android pin Kotlin 2.1.20 (not 2.0.x), because two Kotlin Gradle plugin versions in one build fail to configure. Reasoned, not tested with Gradle.
 - **Behaviour choices:** "Go to Marketplace" opens `https://www.facebook.com/marketplace/` inside the Facebook app (a bare launch intent lands on the feed, which would be blocked again), with fallbacks to the Facebook app launch intent, then the browser. The overlay is focusable so the hardware back key goes to "Go back". Dark theme is in `values-night/themes.xml`. Tips and quotes come from core only; no quotes are hard-coded in Android.
 - **lastTip:** kept in `LockPrefs` (key `last_tip`, default -1), written with `lastQuote` by `recordBlock`. It is not a field of `LockState`.
-
-**Needs a real device before it can be called working:**
-- Whether the Accessibility event fires on each Facebook screen, and whether Marketplace is detected. The "starts with Marketplace" heuristic may block item pages.
-- URL-bar text per browser and per phone maker. Chrome may show only the host in its simplified URL.
-- Overlay behaviour: touch blocking, the back key, re-showing on navigation, removal on leaving the app.
-- Gradle sync with JDK 21 and core's `jvmToolchain(21)`.
-- Google Play policy for accessibility use (not reviewed).
+- Google Play policy for accessibility use is not reviewed.
 
 ## Next steps
 
-1. Get the Android app compiled. Options: install the SDK via a route the egress policy allows, or use a CI runner with network access (`./gradlew assembleDebug`).
-2. Run the Android app on a device or emulator. Check: the Facebook app is blocked off Marketplace; Marketplace search works; the browser URL bar is read on Chrome and at least one other browser; the overlay blocks touches; turning off and on works.
-3. Check the Marketplace heuristic against real Facebook screens and adjust `AppRules.isMarketplaceScreen`.
+1. Test Chrome (enable it on the phone) and Firefox URL bar reading.
+2. Test Marketplace search, Sell, and opening a Marketplace item from a notification or shared link.
+3. Hide "Turn on accessibility service" when the service is on.
 4. Confirm the allowed legal and recovery URLs on facebook.com.
 5. Decide whether to allow `/messages` for Marketplace buyers.
-6. Commit the repo (no commit has been made since the initial README scaffold). Use the session's attribution trailers.
-7. Pushed to https://github.com/Bearfoot1/FacebookLockIn (branch main). Keep pushing from this local repo; remote: origin.
+6. Repo: https://github.com/Bearfoot1/FacebookLockIn (branch main, remote origin). Local clone on the owner's PC: `Documents\GitHub\FacebookLockIn`.
 
 ## Files
 
