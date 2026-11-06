@@ -84,45 +84,57 @@ class LockAccessibilityService : AccessibilityService() {
             lastContentEvaluation = now
         }
 
-        val root = topAppRoot() ?: return
+        val roots = frontAppRoots()
+        if (roots.isEmpty()) return
         try {
-            evaluate(root)
+            evaluate(roots)
         } finally {
-            recycleNode(root)
+            roots.forEach { recycleNode(it) }
         }
     }
 
     /**
-     * Root of the topmost app window. Not rootInActiveWindow: the block overlay takes
-     * focus (for the back key), so the active window is the overlay itself and the
-     * Facebook screen under it would never be checked again.
+     * Roots of every app window that belongs to the front app, top first.
+     *
+     * Not rootInActiveWindow: the block overlay takes focus (for the back key), so the
+     * active window is the overlay itself and the screen under it would never be
+     * checked again. Not only the topmost window either: popups (Chrome's tab tip
+     * bubble, Samsung Internet's privacy dialog) are separate windows of the same
+     * app that hide the URL bar and page from a single-window read.
      */
     @Suppress("DEPRECATION")
-    private fun topAppRoot(): AccessibilityNodeInfo? {
+    private fun frontAppRoots(): List<AccessibilityNodeInfo> {
         val list = try {
             windows
         } catch (e: RuntimeException) {
             emptyList()
         }
-        var found: AccessibilityNodeInfo? = null
+        val roots = ArrayList<AccessibilityNodeInfo>()
+        var frontPackage: String? = null
         // Windows are listed top first.
         for (window in list) {
-            if (found == null && window.type == AccessibilityWindowInfo.TYPE_APPLICATION) {
-                found = window.root
+            if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION) {
+                val root = window.root
+                if (root != null) {
+                    val pkg = root.packageName?.toString()
+                    if (frontPackage == null) frontPackage = pkg
+                    if (pkg != null && pkg == frontPackage) roots += root else recycleNode(root)
+                }
             }
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) window.recycle()
         }
-        return found ?: rootInActiveWindow
+        if (roots.isEmpty()) rootInActiveWindow?.let { roots += it }
+        return roots
     }
 
-    private fun evaluate(root: AccessibilityNodeInfo) {
-        val pkg = root.packageName?.toString() ?: return
+    private fun evaluate(roots: List<AccessibilityNodeInfo>) {
+        val pkg = roots.first().packageName?.toString() ?: return
         when {
             pkg == packageName -> Unit
             // Keep the current state while the notification shade or quick settings are open.
             pkg == SYSTEM_UI_PACKAGE -> Unit
-            AppRules.isFacebookPackage(pkg) -> evaluateFacebook(pkg, root)
-            AppRules.isBrowserPackage(pkg) -> evaluateBrowser(pkg, root)
+            AppRules.isFacebookPackage(pkg) -> evaluateFacebook(pkg, roots)
+            AppRules.isBrowserPackage(pkg) -> evaluateBrowser(pkg, roots)
             // Launcher, other apps: the user has left Facebook and the browsers.
             // Forget the last tab so a link opened later does not inherit Marketplace.
             else -> {
@@ -132,9 +144,14 @@ class LockAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun evaluateFacebook(pkg: String, root: AccessibilityNodeInfo) {
+    private fun evaluateFacebook(pkg: String, roots: List<AccessibilityNodeInfo>) {
         // Messenger is always blocked, so its text is not needed.
-        val screen = if (pkg == MESSENGER_PACKAGE) ScreenInfo(emptyList(), null) else readScreen(root)
+        val screen = if (pkg == MESSENGER_PACKAGE) {
+            ScreenInfo(emptyList(), null)
+        } else {
+            val parts = roots.map { readScreen(it) }
+            ScreenInfo(parts.flatMap { it.texts }, parts.firstNotNullOfOrNull { it.selectedTab })
+        }
         if (screen.selectedTab != null) lastSelectedTab = screen.selectedTab
         if (AppRules.isBlockedAppScreen(pkg, screen.texts, screen.selectedTab, lastSelectedTab)) {
             showOverlay("app:$pkg")
@@ -143,11 +160,11 @@ class LockAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun evaluateBrowser(pkg: String, root: AccessibilityNodeInfo) {
+    private fun evaluateBrowser(pkg: String, roots: List<AccessibilityNodeInfo>) {
         // If the URL bar cannot be read, the browser is treated as allowed (fail open).
         // A bare host ("m.facebook.com", how Samsung Internet shows every page) is
         // allowed too: the page cannot be told apart from Marketplace.
-        val url = readUrlBar(pkg, root)
+        val url = roots.firstNotNullOfOrNull { readUrlBar(pkg, it) }
         if (url != null && !WebRules.isHostOnlyDisplay(url) && WebRules.isLockedUrl(url)) {
             showOverlay("web:$pkg:$url")
         } else {

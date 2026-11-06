@@ -14,11 +14,11 @@ Three surfaces:
 | Shared quotes and tips | `shared/motivation.json` → `scripts/generate-motivation.mjs` | Built, generates both platforms |
 | Android core library (pure Kotlin/JVM, the rules) | `core/` | Built, 173 JVM tests pass |
 | Android app (AccessibilityService, overlay, UI) | `android/` | Built with Gradle; tested on a real phone (see "Phone test") |
-| Phone browsers (Chrome, Firefox, Samsung, etc. on Android) | `android/` (URL-bar reading in the accessibility service) | Samsung Internet tested; Chrome, Firefox not yet |
+| Phone browsers (Chrome, Firefox, Samsung, etc. on Android) | `android/` (URL-bar reading in the accessibility service) | Chrome and Samsung Internet tested; Firefox not yet |
 
 ## Phone test (2026-11-05)
 
-Galaxy S9+ (SM-G965U1), Android 10, debug APK installed over adb. BlockSite and ReelBlock accessibility services were also on. Chrome is disabled on that phone, so it was not tested.
+Galaxy S9+ (SM-G965U1), Android 10, debug APK installed over adb. BlockSite and ReelBlock accessibility services were also on.
 
 | Check | Result |
 | --- | --- |
@@ -30,6 +30,8 @@ Galaxy S9+ (SM-G965U1), Android 10, debug APK installed over adb. BlockSite and 
 | Reopening Facebook straight onto an item page | Blocked (last tab is forgotten on leaving Facebook); Go to Marketplace recovers |
 | Messenger app | Blocked |
 | Samsung Internet, any Facebook page | Allowed (host-only URL bar, owner's choice, see decisions) |
+| Chrome: `m.facebook.com/watch/`, `www.facebook.com/` | Blocked (Chrome shows the full path) |
+| Chrome: `www.facebook.com/marketplace/` | Allowed |
 | Lock off with "I choose distraction", back on | Works |
 
 Bugs found and fixed in that test:
@@ -37,6 +39,7 @@ Bugs found and fixed in that test:
 - **Every Facebook screen counted as Marketplace.** The bottom tab bar is always on screen with the description "Marketplace, tab 4 of 6" (plus ", 1 new" sometimes), which matched the text heuristic. Now the selected tab decides (`AppRules.tabLabel`, `selectedTab`). Screens without a tab bar follow the last selected tab (`lastSelectedTab`), which is reset when another app comes to the front.
 - **The overlay never went away.** It takes focus (for the back key), so `rootInActiveWindow` was the overlay and the Facebook window under it was never checked again. The service now reads the topmost `TYPE_APPLICATION` window (`flagRetrieveInteractiveWindows`, `typeWindowsChanged`).
 - **"Go to Marketplace" left the overlay up.** It now hides the overlay before opening Marketplace; the service re-shows it if the screen is still blocked.
+- **Chrome page not blocked behind a popup.** Chrome's "Open tabs" tip bubble is its own app window on top; only the topmost window was read, it had no URL bar, so the page failed open. The service now reads every window of the front app.
 - **Samsung Internet URL bar text starts with U+200E** (left-to-right mark). The URL failed to parse and was allowed. `WebRules` now strips Unicode format characters, and host-less input that mentions Facebook fails closed.
 - Build fixes: the accessibility flags lacked the `flag` prefix (aapt error); core declared the Kotlin plugin version a second time (fails inside the android build, so the version moved to `core/settings.gradle.kts`); Java and Kotlin JVM targets differed (now 17 everywhere, `jvmToolchain(17)`).
 
@@ -73,7 +76,7 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 
 ## Not verified
 
-- Chrome, Firefox and other phone browsers (Chrome was disabled on the test phone). Chrome's simplified URL may show only the host, which is now allowed (see decisions).
+- Firefox and other phone browsers.
 - Marketplace search, the Sell flow, and Marketplace screens reached without the tab bar from other routes (notifications, shared links).
 - Other phones, other Android versions, other Facebook app versions. The tab bar description format ("X, tab N of M") is from one phone.
 
@@ -114,7 +117,7 @@ Builds with Gradle 8.11.1, AGP 8.7.3, Kotlin 2.1.20, JDK 17 (`./gradlew :app:ass
 
 ## Next steps
 
-1. Test Chrome (enable it on the phone) and Firefox URL bar reading.
+1. Test Firefox URL bar reading.
 2. Test Marketplace search, Sell, and opening a Marketplace item from a notification or shared link.
 3. Hide "Turn on accessibility service" when the service is on.
 4. Confirm the allowed legal and recovery URLs on facebook.com.
