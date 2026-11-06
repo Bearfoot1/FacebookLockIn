@@ -95,6 +95,7 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 - `extension/motivation.js` is a generated file; the core agent regenerated it too. It is identical to the output of the script, so nothing is out of step.
 - **Core library is pure Kotlin** (no Android imports) so its rules can be unit-tested on the JVM.
 - **Facebook app: the selected bottom tab decides.** A screen with no tab bar (item pages, full-screen posts) follows the last tab seen selected, and that memory is cleared when another app comes to the front. The old text heuristic is only the last fallback.
+- **Lock-In only ever acts on Facebook** (owner's request, 2026-11-06). In browsers it judges only text whose own host is facebook.com (or fb.com / messenger.com when the text is malformed). Searches or other sites that merely mention facebook.com are never blocked; before, malformed address-bar text that contained "facebook.com" anywhere was blocked, and the owner saw a block in Chrome while visiting another site.
 - **Browser URL bars that show only a host are allowed** (owner's choice, 2026-11-05). Samsung Internet shows "m.facebook.com" on every Facebook page, so the page can't be judged. The alternative, blocking every Facebook page in that browser, was turned down. This means the full Facebook site is reachable in Samsung Internet.
 
 ## Open issues and limits

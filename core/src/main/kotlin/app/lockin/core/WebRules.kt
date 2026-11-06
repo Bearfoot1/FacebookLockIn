@@ -51,15 +51,16 @@ object WebRules {
         val url = stripInvisible(rawUrl)
         if (url.isBlank()) return false
 
-        // Unparseable input that mentions Facebook or Messenger fails closed: it is a bypass attempt, not garbage.
-        val uri = parse(url) ?: return !mentionsFacebookOrMessenger(url)
-        val host = uri.host
+        // Only text whose own host is Facebook or Messenger is ever judged. A page on
+        // another site, or a search that merely mentions facebook.com, is never locked.
+        val uri = parse(url)
+        val host = uri?.host
         // A bare path such as "/marketplace/item/1" only occurs on Facebook pages,
-        // so it is judged as a Facebook path. Other host-less input fails open.
+        // so it is judged as a Facebook path.
         val isRelativePath = host == null && url.trim().startsWith("/")
-        // Host-less input that still mentions Facebook (e.g. an invisible or non-ASCII
-        // character in the host) fails closed, like unparseable input.
-        if (host == null && !isRelativePath) return !mentionsFacebookOrMessenger(url)
+        // Unparseable or host-less text fails closed only when it starts with a Facebook
+        // or Messenger host ("m.facebook.com /watch"): that is a bypass attempt, not garbage.
+        if (uri == null || (host == null && !isRelativePath)) return !startsWithFacebookOrMessengerHost(url)
         if (host != null && !isFacebookHost(host)) return true
 
         val path = uri.path.orEmpty().trimStart('/')
@@ -90,9 +91,16 @@ object WebRules {
     private fun stripInvisible(text: String): String =
         text.filterNot { Character.getType(it) == Character.FORMAT.toInt() }
 
-    private fun mentionsFacebookOrMessenger(text: String): Boolean {
-        val lower = text.lowercase()
-        return listOf("facebook.com", "fb.com", "messenger.com").any { lower.contains(it) }
+    /**
+     * True when the text's leading host (after any scheme and user info, before the first
+     * path character or space) is Facebook, fb.com or Messenger.
+     */
+    private fun startsWithFacebookOrMessengerHost(text: String): Boolean {
+        val afterScheme = text.trim().substringAfter("://")
+        val authority = afterScheme.takeWhile { it !in "/?#\\" && !it.isWhitespace() }
+        val host = authority.substringAfterLast('@').substringBefore(':').lowercase().trimEnd('.')
+        if (host.isEmpty()) return false
+        return isFacebookHost(host) || listOf("fb.com", "messenger.com").any { host == it || host.endsWith(".$it") }
     }
 
     /** Marketplace search URL; a blank query yields the bare search page. */

@@ -22,6 +22,18 @@ class FailClosedTest {
     }
 
     @Test
+    fun `other sites and searches that mention Facebook are never locked`() {
+        // Seen in Chrome (2026-11-06): Lock-In must only ever act on Facebook itself.
+        assertFalse(WebRules.isLockedUrl("https://how to unblock facebook.com feed"))
+        assertFalse(WebRules.isLockedUrl("example.com/share?u=facebook.com/reel/1 x"))
+        assertFalse(WebRules.isLockedUrl("https://example.com facebook.com/watch"))
+        assertFalse(WebRules.isLockedUrl("https://www.google.com/search?q=facebook.com+reels"))
+        assertFalse(WebRules.isLockedUrl("https://facebook.com.evil.test/watch x"))
+        assertFalse(WebRules.isLockedUrl("about:blank"))
+        assertFalse(WebRules.isLockedUrl("https://about:blank"))
+    }
+
+    @Test
     fun `Samsung Internet URL bar text with a left-to-right mark is judged`() {
         // Real URL bar text: U+200E then the host, no scheme, no path.
         assertTrue(WebRules.isLockedUrl("https://\u200Em.facebook.com"))
