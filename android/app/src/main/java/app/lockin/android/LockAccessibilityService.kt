@@ -3,6 +3,8 @@ package app.lockin.android
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
@@ -32,6 +34,7 @@ class LockAccessibilityService : AccessibilityService() {
     private var overlay: BlockOverlay? = null
     private var shownKey: String? = null
     private var lastContentEvaluation = 0L
+    private val handler = Handler(Looper.getMainLooper())
     /** Label of the bottom tab last seen selected in the Facebook app; null after leaving it. */
     private var lastSelectedTab: String? = null
 
@@ -64,6 +67,7 @@ class LockAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         hideOverlay()
         prefs.unregisterListener(lockListener)
         super.onDestroy()
@@ -272,7 +276,7 @@ class LockAccessibilityService : AccessibilityService() {
             quote = quote,
             tip = tip,
             blockCount = prefs.snapshot().blockCount + 1,
-            onGoBack = { performGlobalAction(GLOBAL_ACTION_BACK) },
+            onGoBack = { goBack(key) },
             // Hide first so Marketplace is visible; the next event re-shows it if still blocked.
             onGoMarketplace = {
                 hideOverlay()
@@ -284,6 +288,21 @@ class LockAccessibilityService : AccessibilityService() {
         overlay = view
         shownKey = key
         prefs.recordBlock(quoteIndex, tipIndex)
+    }
+
+    /**
+     * Goes back one screen. If the same screen is still blocked shortly after (the
+     * previous browser tab is another locked Facebook page, say), goes home instead,
+     * so Go back always gets the user out.
+     */
+    private fun goBack(key: String) {
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        handler.postDelayed({
+            if (shownKey == key) {
+                hideOverlay()
+                performGlobalAction(GLOBAL_ACTION_HOME)
+            }
+        }, GO_BACK_CHECK_MS)
     }
 
     private fun hideOverlay() {
@@ -300,6 +319,7 @@ class LockAccessibilityService : AccessibilityService() {
         private const val TAG = "LockIn"
         private const val MAX_DEPTH = 30
         private const val CONTENT_THROTTLE_MS = 250L
+        private const val GO_BACK_CHECK_MS = 800L
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
         private const val MESSENGER_PACKAGE = "com.facebook.orca"
 

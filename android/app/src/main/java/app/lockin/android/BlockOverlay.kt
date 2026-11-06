@@ -3,7 +3,6 @@ package app.lockin.android
 import android.accessibilityservice.AccessibilityService
 import android.graphics.PixelFormat
 import android.view.ContextThemeWrapper
-import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
@@ -20,7 +19,7 @@ import com.google.android.material.button.MaterialButton
  * @param quote motivational quote text (from app.lockin.core.QuoteRotator)
  * @param tip short tip text (from app.lockin.core.TipRotator), shown under the quote
  * @param blockCount how many times the lock has blocked a screen, including this one
- * @param onGoBack called for the Go back button and the hardware back key
+ * @param onGoBack called for the Go back button
  * @param onGoMarketplace called for the Go to Marketplace button
  */
 class BlockOverlay(
@@ -49,16 +48,10 @@ class BlockOverlay(
 
         // Consume touches that reach the background so the blocked screen is unusable.
         root.setOnTouchListener { _, _ -> true }
-
-        root.isFocusableInTouchMode = true
-        root.setOnKeyListener { _, keyCode, event ->
-            if (keyCode == KeyEvent.KEYCODE_BACK) {
-                if (event.action == KeyEvent.ACTION_UP) onGoBack()
-                true
-            } else {
-                false
-            }
-        }
+        // The window never takes key focus (FLAG_NOT_FOCUSABLE): a focused overlay
+        // swallowed the first Home press on a Galaxy S9+ and left the user stuck
+        // (2026-11-06). The hardware back key now reaches the app underneath, which
+        // goes back a screen; the service then re-judges what is shown.
     }
 
     /** Adds the overlay. Returns false if the window manager refuses it. */
@@ -67,7 +60,6 @@ class BlockOverlay(
         return try {
             windowManager.addView(root, layoutParams())
             attached = true
-            root.requestFocus()
             animateIn()
             true
         } catch (e: RuntimeException) {
@@ -101,7 +93,8 @@ class BlockOverlay(
         WindowManager.LayoutParams.MATCH_PARENT,
         WindowManager.LayoutParams.MATCH_PARENT,
         WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
         PixelFormat.TRANSLUCENT,
     )
 }
