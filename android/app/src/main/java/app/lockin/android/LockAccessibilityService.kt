@@ -9,6 +9,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import app.lockin.core.AppRules
+import app.lockin.core.Motivation
 import app.lockin.core.QuoteRotator
 import app.lockin.core.TipRotator
 import app.lockin.core.WebRules
@@ -266,7 +267,11 @@ class LockAccessibilityService : AccessibilityService() {
         val (quoteIndex, quote) = quotes.next(prefs.lastQuote)
         val (tipIndex, tip) = tips.next(prefs.lastTip)
         val view = BlockOverlay(
-            this, quote, tip,
+            this,
+            headline = Motivation.headlines.random(),
+            quote = quote,
+            tip = tip,
+            blockCount = prefs.snapshot().blockCount + 1,
             onGoBack = { performGlobalAction(GLOBAL_ACTION_BACK) },
             // Hide first so Marketplace is visible; the next event re-shows it if still blocked.
             onGoMarketplace = {

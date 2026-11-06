@@ -3,6 +3,7 @@ package app.lockin.android
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.provider.Settings
 import android.text.Editable
@@ -11,6 +12,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -22,6 +24,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
     private lateinit var countText: TextView
     private lateinit var serviceText: TextView
+    private lateinit var serviceDot: View
+    private lateinit var statusBar: View
     private lateinit var openAccessibilityButton: Button
     private lateinit var openMarketplaceButton: Button
     private lateinit var turnOffButton: Button
@@ -43,6 +47,8 @@ class MainActivity : AppCompatActivity() {
         statusText = bind(R.id.status_text)
         countText = bind(R.id.count_text)
         serviceText = bind(R.id.service_text)
+        serviceDot = bind(R.id.service_dot)
+        statusBar = bind(R.id.status_bar)
         openAccessibilityButton = bind(R.id.open_accessibility_button)
         openMarketplaceButton = bind(R.id.open_marketplace_button)
         turnOffButton = bind(R.id.turn_off_button)
@@ -61,6 +67,9 @@ class MainActivity : AppCompatActivity() {
         turnOffButton.setOnClickListener {
             confirmGroup.visibility = View.VISIBLE
             confirmInput.requestFocus()
+            // The confirm card opens below the fold; bring it into view.
+            val scroll = findViewById<ScrollView>(R.id.main_scroll)
+            scroll?.post { scroll.smoothScrollTo(0, confirmGroup.bottom) }
             updateConfirmButton()
         }
         cancelOffButton.setOnClickListener { hideConfirm() }
@@ -90,11 +99,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun refresh() {
         val state = prefs.snapshot()
-        statusText.setText(if (state.enabled) R.string.status_on else R.string.status_off)
-        countText.text = getString(R.string.blocked_count, state.blockCount)
         val serviceOn = isAccessibilityServiceEnabled()
+        // Locked in = yellow accents; unlocked or not running = red.
+        val locked = state.enabled && serviceOn
+        statusText.setText(if (state.enabled) R.string.status_on else R.string.status_off)
+        statusText.setTextColor(getColor(if (state.enabled) R.color.text_primary else R.color.danger))
+        statusBar.backgroundTintList = ColorStateList.valueOf(getColor(if (locked) R.color.accent else R.color.danger))
+        countText.text = state.blockCount.toString()
         serviceText.setText(if (serviceOn) R.string.service_enabled else R.string.service_disabled)
+        serviceDot.backgroundTintList = ColorStateList.valueOf(getColor(if (serviceOn) R.color.ok else R.color.danger))
         openAccessibilityButton.visibility = if (serviceOn) View.GONE else View.VISIBLE
+        // The service button is the call to action while the lock is not running.
+        openMarketplaceButton.visibility = if (serviceOn) View.VISIBLE else View.GONE
         turnOffButton.visibility = if (state.enabled) View.VISIBLE else View.GONE
         turnOnButton.visibility = if (state.enabled) View.GONE else View.VISIBLE
         hideConfirm()

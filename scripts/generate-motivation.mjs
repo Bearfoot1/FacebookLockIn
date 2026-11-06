@@ -21,6 +21,7 @@ function validate(list, name) {
     seen.add(item);
   }
 }
+validate(data.headlines, 'headlines');
 validate(data.quotes, 'quotes');
 validate(data.tips, 'tips');
 
@@ -32,6 +33,7 @@ const js = `// GENERATED from shared/motivation.json by scripts/generate-motivat
 (function (global) {
   'use strict';
   global.LockMotivation = {
+    HEADLINES: ${JSON.stringify(data.headlines, null, 2).split('\n').join('\n    ')},
     QUOTES: ${JSON.stringify(data.quotes, null, 2).split('\n').join('\n    ')},
     TIPS: ${JSON.stringify(data.tips, null, 2).split('\n').join('\n    ')}
   };
@@ -42,6 +44,10 @@ const kt = `// GENERATED from shared/motivation.json by scripts/generate-motivat
 package app.lockin.core
 
 object Motivation {
+    val headlines: List<String> = listOf(
+${data.headlines.map((h) => '        ' + kotlinString(h) + ',').join('\n').replace(/,$/, '')}
+    )
+
     val quotes: List<String> = listOf(
 ${data.quotes.map((q) => '        ' + kotlinString(q) + ',').join('\n').replace(/,$/, '')}
     )
@@ -55,4 +61,4 @@ ${data.tips.map((t) => '        ' + kotlinString(t) + ',').join('\n').replace(/,
 writeFileSync(path.join(root, 'extension', 'motivation.js'), js);
 mkdirSync(path.join(root, 'core', 'src', 'main', 'kotlin', 'app', 'lockin', 'core'), { recursive: true });
 writeFileSync(path.join(root, 'core', 'src', 'main', 'kotlin', 'app', 'lockin', 'core', 'Motivation.kt'), kt);
-console.log(`wrote ${data.quotes.length} quotes and ${data.tips.length} tips`);
+console.log(`wrote ${data.headlines.length} headlines, ${data.quotes.length} quotes and ${data.tips.length} tips`);

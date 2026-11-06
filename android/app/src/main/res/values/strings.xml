@@ -1,29 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Marketplace Lock-In</string>
-    <string name="intro">Facebook and the web on this phone are limited to Marketplace, log-in, account recovery, help and legal pages.</string>
+    <string name="intro">Facebook is Marketplace only. The feed, Reels, Messenger and everything else stay blocked.</string>
 
-    <string name="status_on">Lock is ON</string>
-    <string name="status_off">Lock is OFF</string>
-    <string name="blocked_count">Screens blocked so far: %1$d</string>
-    <string name="service_enabled">Accessibility service: on</string>
-    <string name="service_disabled">Accessibility service: OFF. The lock does nothing until you turn it on.</string>
+    <string name="status_on">LOCKED IN.</string>
+    <string name="status_off">UNLOCKED.</string>
+    <string name="blocked_label">Distractions blocked</string>
+    <string name="app_label_caps">Marketplace Lock-In</string>
+    <string name="overlay_tip_label">Seller tip</string>
+    <string name="overlay_count">Blocked %1$d times. Stay locked in.</string>
+    <string name="confirm_label">Are you sure?</string>
+    <string name="service_enabled">Lock is running</string>
+    <string name="service_disabled">Lock is NOT running. Turn on the accessibility service.</string>
 
     <string name="open_accessibility">Turn on accessibility service</string>
-    <string name="open_marketplace">Open Marketplace</string>
+    <string name="open_marketplace">Go to Marketplace</string>
     <string name="turn_lock_off">Turn the lock off</string>
-    <string name="turn_lock_on">Turn the lock back on</string>
-    <string name="confirm_prompt">To turn the lock off, type exactly: %1$s</string>
+    <string name="turn_lock_on">Lock back in</string>
+    <string name="confirm_prompt">Type exactly: %1$s</string>
     <string name="confirm_phrase">I choose distraction</string>
-    <string name="confirm_off">Confirm: turn the lock off</string>
-    <string name="cancel">Cancel</string>
+    <string name="confirm_off">Turn the lock off</string>
+    <string name="cancel">Stay locked in</string>
     <string name="no_settings_app">No app on this phone can open that screen.</string>
 
     <string name="accessibility_service_label">Marketplace Lock-In</string>
     <string name="accessibility_service_description">Reads the text of Facebook screens and the address bar of browsers so it can block everything except Marketplace and the log-in, recovery, help and legal pages. Nothing is sent off the phone.</string>
 
-    <string name="overlay_title">This screen is locked.</string>
+    <string name="overlay_title">NOT TODAY.</string>
     <string name="overlay_go_marketplace">Go to Marketplace</string>
     <string name="overlay_go_back">Go back</string>
-    <string name="overlay_tip">Tip: %1$s</string>
 </resources>

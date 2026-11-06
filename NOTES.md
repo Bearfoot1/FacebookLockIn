@@ -91,7 +91,7 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 - **In-app navigation** (Facebook is a single-page app): an isolated content script cannot see the page's `pushState`, so `main-world.js` runs in the page world and dispatches an event. The content script then asks the background worker to move the tab. Extension pages are not web-accessible, so the redirect cannot come from the page itself.
 - **Fail closed**: if storage can't be read, the lock stays on. The content script waits for the stored flag before enforcing, so an "off" lock is never briefly enforced.
 - **Turning off** needs the exact phrase `I choose distraction`. This is a speed bump, not security: a user can still disable the extension in `chrome://extensions` or uninstall the app.
-- **Quotes and tips are generated** from one JSON file (49 quotes, 32 tips), so the extension and Android stay identical. Quotes are original, with no attributions to real people. Eight of the quotes name Marketplace explicitly; the rest are general motivation.
+- **Headlines, quotes and tips are generated** from one JSON file (16 headlines, 49 quotes, 32 tips), so the extension and Android stay identical. The extension does not show headlines yet. Voice (owner's choice, 2026-11-05): bold hustle and money, short and punchy. All original, no attributions to real people.
 - `extension/motivation.js` is a generated file; the core agent regenerated it too. It is identical to the output of the script, so nothing is out of step.
 - **Core library is pure Kotlin** (no Android imports) so its rules can be unit-tested on the JVM.
 - **Facebook app: the selected bottom tab decides.** A screen with no tab bar (item pages, full-screen posts) follows the last tab seen selected, and that memory is cleared when another app comes to the front. The old text heuristic is only the last fallback.
@@ -116,6 +116,7 @@ Builds with Gradle 8.11.1, AGP 8.7.3, Kotlin 2.1.20, JDK 17 (`./gradlew :app:ass
 - **Behaviour choices:** "Go to Marketplace" opens `https://www.facebook.com/marketplace/` inside the Facebook app (a bare launch intent lands on the feed, which would be blocked again), with fallbacks to the Facebook app launch intent, then the browser. The overlay is focusable so the hardware back key goes to "Go back". Dark theme is in `values-night/themes.xml`. Tips and quotes come from core only; no quotes are hard-coded in Android.
 - **lastTip:** kept in `LockPrefs` (key `last_tip`, default -1), written with `lastQuote` by `recordBlock`. It is not a field of `LockState`.
 - **Debug log:** the service logs each Facebook decision under the tag `LockIn` (`adb logcat -s LockIn`): package, selected tab, last tab, blocked. No screen text is logged.
+- **Look (owner's choice, 2026-11-05): bold.** Always dark (no light theme): near-black `ink`, white text, electric-yellow `accent`, red `danger`. Block screen: random headline, accent bar, quote, seller-tip card, block count, big yellow Go to Marketplace. Main screen: LOCKED IN. / UNLOCKED. headline, blocked-count card, running dot. The turn-off card makes Stay locked in the big button.
 - Google Play policy for accessibility use is not reviewed.
 
 ## Next steps

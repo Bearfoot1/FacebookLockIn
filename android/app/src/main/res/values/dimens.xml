@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <dimen name="screen_padding">16dp</dimen>
+    <dimen name="screen_padding">24dp</dimen>
     <dimen name="section_spacing">12dp</dimen>
-    <dimen name="overlay_padding">24dp</dimen>
-    <dimen name="overlay_title_size">28sp</dimen>
-    <dimen name="overlay_quote_size">22sp</dimen>
+    <dimen name="overlay_padding">28dp</dimen>
+    <dimen name="overlay_quote_size">24sp</dimen>
+    <dimen name="accent_bar_width">56dp</dimen>
+    <dimen name="accent_bar_height">6dp</dimen>
 </resources>
