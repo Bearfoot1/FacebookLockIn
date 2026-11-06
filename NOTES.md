@@ -32,6 +32,8 @@ Galaxy S9+ (SM-G965U1), Android 10, debug APK installed over adb. BlockSite and 
 | Samsung Internet, any Facebook page | Allowed (host-only URL bar, owner's choice, see decisions) |
 | Chrome: `m.facebook.com/watch/`, `www.facebook.com/` | Blocked (Chrome shows the full path) |
 | Chrome: `www.facebook.com/marketplace/` | Allowed |
+| Marketplace search, search results, result items | Allowed |
+| Sell (Selling page), Marketplace chat inbox | Allowed |
 | Lock off with "I choose distraction", back on | Works |
 
 Bugs found and fixed in that test:
@@ -39,6 +41,7 @@ Bugs found and fixed in that test:
 - **Every Facebook screen counted as Marketplace.** The bottom tab bar is always on screen with the description "Marketplace, tab 4 of 6" (plus ", 1 new" sometimes), which matched the text heuristic. Now the selected tab decides (`AppRules.tabLabel`, `selectedTab`). Screens without a tab bar follow the last selected tab (`lastSelectedTab`), which is reset when another app comes to the front.
 - **The overlay never went away.** It takes focus (for the back key), so `rootInActiveWindow` was the overlay and the Facebook window under it was never checked again. The service now reads the topmost `TYPE_APPLICATION` window (`flagRetrieveInteractiveWindows`, `typeWindowsChanged`).
 - **"Go to Marketplace" left the overlay up.** It now hides the overlay before opening Marketplace; the service re-shows it if the screen is still blocked.
+- **Marketplace search was blocked.** Its "Recent, tab 1 of 2" strip was taken for the main tab bar. Only a tab group that contains a Marketplace tab counts now (`AppRules.selectedMainTab`).
 - **Chrome page not blocked behind a popup.** Chrome's "Open tabs" tip bubble is its own app window on top; only the topmost window was read, it had no URL bar, so the page failed open. The service now reads every window of the front app.
 - **Samsung Internet URL bar text starts with U+200E** (left-to-right mark). The URL failed to parse and was allowed. `WebRules` now strips Unicode format characters, and host-less input that mentions Facebook fails closed.
 - Build fixes: the accessibility flags lacked the `flag` prefix (aapt error); core declared the Kotlin plugin version a second time (fails inside the android build, so the version moved to `core/settings.gradle.kts`); Java and Kotlin JVM targets differed (now 17 everywhere, `jvmToolchain(17)`).
@@ -77,7 +80,7 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 ## Not verified
 
 - Firefox and other phone browsers.
-- Marketplace search, the Sell flow, and Marketplace screens reached without the tab bar from other routes (notifications, shared links).
+- Marketplace screens reached from other routes (notifications, shared links).
 - Other phones, other Android versions, other Facebook app versions. The tab bar description format ("X, tab N of M") is from one phone.
 
 ## Key decisions (and why)
@@ -105,7 +108,6 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 - Accessibility-based blocking on Android needs the user to grant the Accessibility permission. Google Play review for that permission was not considered.
 - Samsung Internet (and any browser that hides the path) is an open way to the whole Facebook site, by choice.
 - A notification that opens a Facebook post while the last tab was Marketplace (the shade does not reset the last tab) would be allowed.
-- The main screen still shows "Turn on accessibility service" when the service is already on.
 
 ## Android status
 
@@ -113,16 +115,16 @@ Builds with Gradle 8.11.1, AGP 8.7.3, Kotlin 2.1.20, JDK 17 (`./gradlew :app:ass
 
 - **Behaviour choices:** "Go to Marketplace" opens `https://www.facebook.com/marketplace/` inside the Facebook app (a bare launch intent lands on the feed, which would be blocked again), with fallbacks to the Facebook app launch intent, then the browser. The overlay is focusable so the hardware back key goes to "Go back". Dark theme is in `values-night/themes.xml`. Tips and quotes come from core only; no quotes are hard-coded in Android.
 - **lastTip:** kept in `LockPrefs` (key `last_tip`, default -1), written with `lastQuote` by `recordBlock`. It is not a field of `LockState`.
+- **Debug log:** the service logs each Facebook decision under the tag `LockIn` (`adb logcat -s LockIn`): package, selected tab, last tab, blocked. No screen text is logged.
 - Google Play policy for accessibility use is not reviewed.
 
 ## Next steps
 
 1. Test Firefox URL bar reading.
-2. Test Marketplace search, Sell, and opening a Marketplace item from a notification or shared link.
-3. Hide "Turn on accessibility service" when the service is on.
-4. Confirm the allowed legal and recovery URLs on facebook.com.
-5. Decide whether to allow `/messages` for Marketplace buyers.
-6. Repo: https://github.com/Bearfoot1/FacebookLockIn (branch main, remote origin). Local clone on the owner's PC: `Documents\GitHub\FacebookLockIn`.
+2. Test opening a Marketplace item from a notification or shared link.
+3. Confirm the allowed legal and recovery URLs on facebook.com.
+4. Decide whether to allow `/messages` for Marketplace buyers on the web. (In the Facebook app, the Marketplace chat inbox is reachable from Selling > Inbox and allowed.)
+5. Repo: https://github.com/Bearfoot1/FacebookLockIn (branch main, remote origin). Local clone on the owner's PC: `Documents\GitHub\FacebookLockIn`.
 
 ## Files
 

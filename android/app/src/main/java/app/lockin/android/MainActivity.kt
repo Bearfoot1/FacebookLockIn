@@ -92,9 +92,9 @@ class MainActivity : AppCompatActivity() {
         val state = prefs.snapshot()
         statusText.setText(if (state.enabled) R.string.status_on else R.string.status_off)
         countText.text = getString(R.string.blocked_count, state.blockCount)
-        serviceText.setText(
-            if (isAccessibilityServiceEnabled()) R.string.service_enabled else R.string.service_disabled,
-        )
+        val serviceOn = isAccessibilityServiceEnabled()
+        serviceText.setText(if (serviceOn) R.string.service_enabled else R.string.service_disabled)
+        openAccessibilityButton.visibility = if (serviceOn) View.GONE else View.VISIBLE
         turnOffButton.visibility = if (state.enabled) View.VISIBLE else View.GONE
         turnOnButton.visibility = if (state.enabled) View.GONE else View.VISIBLE
         hideConfirm()

@@ -35,6 +35,18 @@ class AppRulesTest {
         assertFalse(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar, selectedTab = "Marketplace"))
     }
 
+    @Test
+    fun selectedMainTabIgnoresOtherTabStrips() {
+        val main = tabBar.map { it to it.startsWith("Marketplace") }
+        // Real Marketplace search screen: only its own two-tab strip, no main bar.
+        val search = listOf("Recent, tab 1 of 2" to true, "Saved searches, tab 2 of 2" to false)
+        assertEquals("Marketplace", AppRules.selectedMainTab(main))
+        assertEquals(null, AppRules.selectedMainTab(search))
+        assertEquals("Marketplace", AppRules.selectedMainTab(search + main))
+        assertEquals("Home", AppRules.selectedMainTab(tabBar.map { it to it.startsWith("Home") }))
+        assertEquals(null, AppRules.selectedMainTab(emptyList()))
+    }
+
     // Real item page texts (no tab bar, no "Marketplace" title).
     private val itemPage = listOf("Close", "Product Image,1 of 1", "Lord of the Rings Cartoon VHS", "$5", "Message seller")
 

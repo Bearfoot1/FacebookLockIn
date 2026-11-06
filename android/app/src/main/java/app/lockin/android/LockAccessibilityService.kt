@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
@@ -138,6 +139,7 @@ class LockAccessibilityService : AccessibilityService() {
             // Launcher, other apps: the user has left Facebook and the browsers.
             // Forget the last tab so a link opened later does not inherit Marketplace.
             else -> {
+                if (lastSelectedTab != null) Log.d(TAG, "left Facebook via $pkg: last tab cleared")
                 lastSelectedTab = null
                 hideOverlay()
             }
@@ -153,7 +155,10 @@ class LockAccessibilityService : AccessibilityService() {
             ScreenInfo(parts.flatMap { it.texts }, parts.firstNotNullOfOrNull { it.selectedTab })
         }
         if (screen.selectedTab != null) lastSelectedTab = screen.selectedTab
-        if (AppRules.isBlockedAppScreen(pkg, screen.texts, screen.selectedTab, lastSelectedTab)) {
+        val blocked = AppRules.isBlockedAppScreen(pkg, screen.texts, screen.selectedTab, lastSelectedTab)
+        // Tab labels and the decision only; screen text stays out of the log.
+        Log.d(TAG, "$pkg tab=${screen.selectedTab} last=$lastSelectedTab blocked=$blocked")
+        if (blocked) {
             showOverlay("app:$pkg")
         } else {
             hideOverlay()
@@ -180,17 +185,17 @@ class LockAccessibilityService : AccessibilityService() {
      */
     private fun readScreen(root: AccessibilityNodeInfo): ScreenInfo {
         val texts = ArrayList<String>()
-        var selectedTab: String? = null
+        val tabs = ArrayList<Pair<String, Boolean>>()
         walkTree(root) { node ->
             for (raw in listOf(node.text, node.contentDescription)) {
                 val text = raw?.toString()?.trim()
                 if (text.isNullOrEmpty()) continue
                 texts += text
-                if (selectedTab == null && node.isSelected) selectedTab = AppRules.tabLabel(text)
+                if (AppRules.tabLabel(text) != null) tabs += text to node.isSelected
             }
             false
         }
-        return ScreenInfo(texts, selectedTab)
+        return ScreenInfo(texts, AppRules.selectedMainTab(tabs))
     }
 
     /**
@@ -287,6 +292,7 @@ class LockAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val MAX_NODES = 1500
+        private const val TAG = "LockIn"
         private const val MAX_DEPTH = 30
         private const val CONTENT_THROTTLE_MS = 250L
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"

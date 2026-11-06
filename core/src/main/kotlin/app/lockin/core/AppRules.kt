@@ -60,6 +60,24 @@ object AppRules {
     fun tabLabel(description: String): String? =
         TAB_DESCRIPTION.matchEntire(description)?.groupValues?.get(1)?.trim()
 
+    private val TAB_COUNT = Regex(",\\s*tab\\s+\\d+\\s+of\\s+(\\d+)\\b", RegexOption.IGNORE_CASE)
+
+    /**
+     * The selected tab of Facebook's main bottom bar, given every tab description on
+     * screen and whether its node is selected. Other tab strips (Marketplace search has
+     * "Recent, tab 1 of 2") are ignored: the main bar is the group, by tab count, that
+     * contains a Marketplace tab. Null when no main bar is on screen.
+     */
+    fun selectedMainTab(tabs: List<Pair<String, Boolean>>): String? {
+        val parsed = tabs.mapNotNull { (description, selected) ->
+            val label = tabLabel(description) ?: return@mapNotNull null
+            val count = TAB_COUNT.find(description)?.groupValues?.get(1) ?: return@mapNotNull null
+            Triple(label, count, selected)
+        }
+        val mainCount = parsed.firstOrNull { isMarketplaceTab(it.first) }?.second ?: return null
+        return parsed.firstOrNull { it.second == mainCount && it.third }?.first
+    }
+
     /**
      * True when the package is a Facebook app and the screen is not Marketplace.
      * Messenger is always blocked, even when its texts look like Marketplace.
