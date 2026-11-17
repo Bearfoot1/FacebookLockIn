@@ -67,7 +67,7 @@ chrome.runtime.onMessage.addListener(function (message, sender) {
   if (!message || message.type !== 'mli-block-tab' || !sender.tab || sender.tab.id === undefined) {
     return;
   }
-  chrome.tabs.update(sender.tab.id, { url: chrome.runtime.getURL('blocked.html') });
+  sendToBlockedPage(sender.tab.id);
 });
 
 // Also apply on every worker start, so rules survive worker restarts.
@@ -78,21 +78,36 @@ applyCurrentState();
 // sees full page loads. host_permissions let us see Facebook tab URLs without "tabs".
 var BLOCKED_PAGE = chrome.runtime.getURL('blocked.html');
 
+// The content script and the onUpdated backstop can both report one navigation; send a
+// tab to the block page once per BLOCK_DEDUPE_MS so it is counted and stacked only once.
+var BLOCK_DEDUPE_MS = 1500;
+var lastBlockedAt = {};
+
+function sendToBlockedPage(tabId) {
+  var now = Date.now();
+  if (lastBlockedAt[tabId] && now - lastBlockedAt[tabId] < BLOCK_DEDUPE_MS) return;
+  lastBlockedAt[tabId] = now;
+  chrome.tabs.update(tabId, { url: BLOCKED_PAGE }).catch(function () {
+    // Tab closed meanwhile.
+  });
+}
+
+chrome.tabs.onRemoved.addListener(function (tabId) {
+  delete lastBlockedAt[tabId];
+});
+
 async function blockIfLocked(tabId, url) {
   if (!url || !R.isLockedUrl(url)) return;
   if (!(await readEnabled())) return;
-  try {
-    await chrome.tabs.update(tabId, { url: BLOCKED_PAGE });
-  } catch (e) {
-    // Tab closed meanwhile.
-  }
+  sendToBlockedPage(tabId);
 }
 
 chrome.tabs.onUpdated.addListener(function (tabId, changeInfo) {
   if (changeInfo.url) blockIfLocked(tabId, changeInfo.url);
 });
 
-// Facebook tabs already open when the extension starts (install, update, browser start).
+// Facebook tabs already open when the worker starts. Run on every start, not only on
+// onInstalled/onStartup: re-enabling the extension fires neither.
 async function sweepOpenTabs() {
   try {
     var tabs = await chrome.tabs.query({ url: '*://*.facebook.com/*' });
@@ -103,5 +118,4 @@ async function sweepOpenTabs() {
     // Nothing to sweep.
   }
 }
-chrome.runtime.onInstalled.addListener(sweepOpenTabs);
-chrome.runtime.onStartup.addListener(sweepOpenTabs);
+sweepOpenTabs();

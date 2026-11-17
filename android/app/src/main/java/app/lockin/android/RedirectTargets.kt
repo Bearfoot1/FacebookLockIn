@@ -26,9 +26,9 @@ object RedirectTargets {
     }
 
     /** Packages that are never redirected on this device, on top of RedirectRules.canRedirect. */
-    fun unsafePackages(context: Context): Set<String> {
+    fun unsafePackages(context: Context, browsers: Set<String> = browserPackages(context)): Set<String> {
         val pm = context.packageManager
-        val out = HashSet<String>(browserPackages(context))
+        val out = HashSet<String>(browsers)
         try {
             val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
             pm.queryIntentActivities(home, 0).forEach { out += it.activityInfo.packageName }

@@ -81,7 +81,12 @@ object AppRules {
             val count = TAB_COUNT.find(description)?.groupValues?.get(1) ?: return@mapNotNull null
             Triple(label, count, selected)
         }
-        val mainCount = parsed.firstOrNull { isMarketplaceTab(it.first) }?.second ?: return null
+        // The main bar shows all of its tabs: N distinct labels that all say "of N".
+        // That rules out carousels and lists ("Marketplace, photo 1 of 10") now that any
+        // language's wording is accepted.
+        val mainCount = parsed.filter { isMarketplaceTab(it.first) }.map { it.second }.distinct().firstOrNull { count ->
+            parsed.filter { it.second == count }.map { it.first.lowercase() }.distinct().size == count.toInt()
+        } ?: return null
         return parsed.firstOrNull { it.second == mainCount && it.third }?.first
     }
 

@@ -27,8 +27,22 @@ class AppRulesTest {
     fun tabLabelParsesOtherLanguages() {
         assertEquals("Marketplace", AppRules.tabLabel("Marketplace, pestaña 4 de 6"))
         assertEquals("Accueil", AppRules.tabLabel("Accueil, onglet 1 sur 6"))
-        val spanish = listOf("Inicio, pestaña 1 de 6", "Marketplace, pestaña 4 de 6")
+        val spanish = listOf(
+            "Inicio, pestaña 1 de 6", "Reels, pestaña 2 de 6", "Amigos, pestaña 3 de 6",
+            "Marketplace, pestaña 4 de 6", "Notificaciones, pestaña 5 de 6", "Menú, pestaña 6 de 6",
+        )
         assertEquals("Inicio", AppRules.selectedMainTab(spanish.map { it to it.startsWith("Inicio") }))
+    }
+
+    @Test
+    fun carouselShapedTextIsNotTheTabBar() {
+        // A feed unit described like a tab must not set the main bar's tab count.
+        val carousel = listOf("Marketplace, photo 1 of 10" to false, "Marketplace, photo 2 of 10" to false)
+        val tabs = carousel + tabBar.map { it to it.startsWith("Home") }
+        assertEquals("Home", AppRules.selectedMainTab(tabs))
+        assertEquals(null, AppRules.selectedMainTab(carousel))
+        // Each tab is often read twice (text and content description); still one bar.
+        assertEquals("Home", AppRules.selectedMainTab((tabBar + tabBar).map { it to it.startsWith("Home") }))
     }
 
     @Test

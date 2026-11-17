@@ -52,7 +52,8 @@ class LockAccessibilityService : AccessibilityService() {
     private var browserCache: Set<String> = emptySet()
 
     /** Judges the front screen once more after a throttled content change. */
-    private val throttleRecheck = Runnable { reevaluate() }
+    // A content change, not an app switch: must not trigger a redirect (see evaluate).
+    private val throttleRecheck = Runnable { reevaluate(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) }
 
     /** Re-judges the front screen when a Marketplace grace window ends with no new event. */
     private val graceRecheck = Runnable { reevaluate() }
@@ -81,6 +82,37 @@ class LockAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         prefs.registerListener(lockListener)
         prefs.registerChangeListener(settingsListener)
+        // A newly installed browser or redirect app is picked up at once, not after the cache timer.
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        try {
+            registerReceiver(packageReceiver, filter)
+            packageReceiverRegistered = true
+        } catch (e: RuntimeException) {
+            // The 60 s cache timer still catches installs.
+        }
+    }
+
+    private var packageReceiverRegistered = false
+    private val packageReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            unsafeCachedAt = 0L
+            activeCache = null
+        }
+    }
+
+    private fun unregisterPackageReceiver() {
+        if (!packageReceiverRegistered) return
+        packageReceiverRegistered = false
+        try {
+            unregisterReceiver(packageReceiver)
+        } catch (e: RuntimeException) {
+            // Already gone.
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -100,6 +132,7 @@ class LockAccessibilityService : AccessibilityService() {
         hideOverlay()
         prefs.unregisterListener(lockListener)
         prefs.unregisterChangeListener(settingsListener)
+        unregisterPackageReceiver()
         return super.onUnbind(intent)
     }
 
@@ -108,6 +141,7 @@ class LockAccessibilityService : AccessibilityService() {
         hideOverlay()
         prefs.unregisterListener(lockListener)
         prefs.unregisterChangeListener(settingsListener)
+        unregisterPackageReceiver()
         super.onDestroy()
     }
 
@@ -163,13 +197,18 @@ class LockAccessibilityService : AccessibilityService() {
         var frontPackage: String? = null
         // Windows are listed top first.
         for (window in list) {
-            // A picture-in-picture window sits above the full-screen app; taking it as the
-            // front app would leave Facebook unjudged for as long as the video floats.
-            val pip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && window.isInPictureInPictureMode
-            if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION && !pip) {
+            if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION) {
                 val root = window.root
                 if (root != null) {
                     val pkg = root.packageName?.toString()
+                    // A picture-in-picture window sits above the full-screen app. Another
+                    // app's floating video is skipped (it would leave Facebook unjudged
+                    // underneath); a floating Facebook video is judged like Facebook.
+                    if (isPip(window) && (pkg == null || !AppRules.isFacebookPackage(pkg))) {
+                        recycleNode(root)
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) window.recycle()
+                        continue
+                    }
                     if (frontPackage == null) frontPackage = pkg
                     if (pkg != null && pkg == frontPackage) roots += root else recycleNode(root)
                 }
@@ -287,12 +326,12 @@ class LockAccessibilityService : AccessibilityService() {
     }
 
     /** Judges the current front screen without waiting for an event. */
-    private fun reevaluate() {
+    private fun reevaluate(eventType: Int = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
         if (!prefs.enabled) return
         val roots = frontAppRoots()
         if (roots.isEmpty()) return
         try {
-            evaluate(roots, AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
+            evaluate(roots, eventType)
         } catch (e: RuntimeException) {
             // Keep the current state.
         } finally {
@@ -305,8 +344,15 @@ class LockAccessibilityService : AccessibilityService() {
         // screen) or the user is typing in it, keep the current state: a showing block
         // screen stays, nothing new is blocked. A bare host ("m.facebook.com", how
         // Samsung Internet shows every page) is allowed: it can't be told from Marketplace.
-        val url = roots.firstNotNullOfOrNull { readUrlBar(pkg, it) } ?: return
-        if (url == URL_BEING_EDITED) return
+        // Leaving the Facebook app for a browser forgets its last tab (as for any other app).
+        lastSelectedTab = null
+        val url = roots.firstNotNullOfOrNull { readUrlBar(pkg, it) }
+        if (url == null || url == URL_BEING_EDITED) {
+            // Only this browser's own block screen is kept. One left from another app
+            // (the Facebook feed, another browser) goes, or it would sit over this one.
+            if (shownKey?.startsWith("web:$pkg:") != true) hideOverlay()
+            return
+        }
         if (!WebRules.isHostOnlyDisplay(url) && WebRules.isLockedUrl(url)) {
             showOverlay("web:$pkg:$url")
         } else {
@@ -489,8 +535,9 @@ class LockAccessibilityService : AccessibilityService() {
     private fun refreshDeviceCaches() {
         val now = SystemClock.uptimeMillis()
         if (unsafeCachedAt != 0L && now - unsafeCachedAt <= UNSAFE_CACHE_MS) return
-        browserCache = RedirectTargets.browserPackages(this) - AppRules.facebookPackages
-        unsafeCache = RedirectTargets.unsafePackages(this)
+        val browsers = RedirectTargets.browserPackages(context = this)
+        browserCache = browsers - AppRules.facebookPackages
+        unsafeCache = RedirectTargets.unsafePackages(this, browsers)
         unsafeCachedAt = now
         activeCache = null
     }
@@ -505,6 +552,9 @@ class LockAccessibilityService : AccessibilityService() {
         return activeCache ?: RedirectTargets.active(this, prefs, unsafeCache).also { activeCache = it }
     }
 
+    private fun isPip(window: AccessibilityWindowInfo): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && window.isInPictureInPictureMode
+
     /** Package of the focused full-screen app window, or null. */
     @Suppress("DEPRECATION")
     private fun focusedAppPackage(): String? {
@@ -517,7 +567,7 @@ class LockAccessibilityService : AccessibilityService() {
         for (window in list) {
             if (found == null && window.type == AccessibilityWindowInfo.TYPE_APPLICATION &&
                 (window.isFocused || window.isActive) &&
-                !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && window.isInPictureInPictureMode)
+                !isPip(window)
             ) {
                 val root = window.root
                 found = root?.packageName?.toString()
