@@ -355,18 +355,19 @@ class MainActivity : AppCompatActivity() {
      */
     private fun buildRedirectRows() {
         redirectUnsafe = RedirectTargets.unsafePackages(this)
+        // Computed once per build; every toggle rebuilds the list, because one app's
+        // switch can move another between Redirecting and Paused.
+        val active = RedirectTargets.active(this, prefs, redirectUnsafe)
         redirectList.removeAllViews()
         val enabled = prefs.redirectPackages
-        var onCount = 0
 
         val common = RedirectRules.commonApps.mapNotNull { app ->
-            val installed = app.packages.firstOrNull { isInstalled(it) } ?: return@mapNotNull null
+            val installed = app.packages.firstOrNull { RedirectTargets.isInstalled(this, it) } ?: return@mapNotNull null
             app to installed
         }
         for ((app, installed) in common) {
             val on = app.packages.any { it in enabled }
-            if (on) onCount++
-            addRow(installed, app.packages.toSet(), app.name, on, removable = false) { checked ->
+            addRow(active,installed, app.packages.toSet(), app.name, on, removable = false) { checked ->
                 val now = prefs.redirectPackages
                 prefs.redirectPackages = if (checked) now + app.packages else now - app.packages.toSet()
             }
@@ -378,8 +379,7 @@ class MainActivity : AppCompatActivity() {
             .sortedBy { it.second.lowercase() }
         for ((pkg, label) in custom) {
             val on = pkg in enabled
-            if (on) onCount++
-            addRow(pkg, setOf(pkg), label, on, removable = true) { checked ->
+            addRow(active, pkg, setOf(pkg), label, on, removable = true) { checked ->
                 val now = prefs.redirectPackages
                 prefs.redirectPackages = if (checked) now + pkg else now - pkg
             }
@@ -389,11 +389,15 @@ class MainActivity : AppCompatActivity() {
         if (redirectList.childCount > 0) {
             redirectList.getChildAt(redirectList.childCount - 1).findViewById<View>(R.id.app_divider).visibility = View.GONE
         }
-        redirectCountText.text = redirectCountLabel(onCount)
+        // Same count the free limit uses: installed, safe apps only.
+        redirectCountText.text = redirectCountLabel(
+            RedirectRules.redirectAppCount(RedirectTargets.countedEnabled(this, prefs, redirectUnsafe)),
+        )
         redirectEmptyText.visibility = if (common.isEmpty() && custom.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun addRow(
+        activeRedirects: Set<String>,
         pkg: String,
         packages: Set<String>,
         label: String,
@@ -406,31 +410,28 @@ class MainActivity : AppCompatActivity() {
         item.findViewById<ImageView>(R.id.app_icon).setImageDrawable(iconOf(pkg))
         val state = item.findViewById<TextView>(R.id.app_state)
         val switch = item.findViewById<SwitchCompat>(R.id.app_switch)
-        fun showState(checked: Boolean) {
-            // Show what the service really does: a switched-on app can be ignored when it
-            // is unsafe on this phone, or past the free limit after Pro lapsed.
-            val unsafe = packages.none { RedirectTargets.isSafe(it, redirectUnsafe) }
-            val active = checked && packages.any { it in RedirectTargets.active(this, prefs, redirectUnsafe) }
-            when {
-                !checked -> state.setText(R.string.redirect_off)
-                active -> state.setText(R.string.redirect_on)
-                unsafe -> state.setText(R.string.redirect_unsafe)
-                else -> state.setText(R.string.redirect_paused)
-            }
-            state.setTextColor(
-                when {
-                    active -> LockTheme.accent(this)
-                    checked -> getColor(R.color.danger)
-                    else -> getColor(R.color.text_muted)
-                },
-            )
+        // Show what the service really does: a switched-on app can be ignored when it is
+        // uninstalled, unsafe on this phone, or past the free limit after Pro lapsed.
+        val active = on && packages.any { it in activeRedirects }
+        when {
+            !on -> state.setText(R.string.redirect_off)
+            active -> state.setText(R.string.redirect_on)
+            packages.none { RedirectTargets.isInstalled(this, it) } -> state.setText(R.string.redirect_not_installed)
+            packages.none { RedirectTargets.isSafe(it, redirectUnsafe) } -> state.setText(R.string.redirect_unsafe)
+            else -> state.setText(R.string.redirect_paused)
         }
+        state.setTextColor(
+            when {
+                active -> LockTheme.accent(this)
+                on -> getColor(R.color.danger)
+                else -> getColor(R.color.text_muted)
+            },
+        )
         switch.isChecked = on
         switch.contentDescription = label
-        showState(on)
         switch.setOnCheckedChangeListener(object : android.widget.CompoundButton.OnCheckedChangeListener {
             override fun onCheckedChanged(button: android.widget.CompoundButton, checked: Boolean) {
-                if (checked && !RedirectRules.canEnableAnother(RedirectTargets.installedEnabled(this@MainActivity, prefs), prefs.pro)) {
+                if (checked && !RedirectRules.canEnableAnother(RedirectTargets.countedEnabled(this@MainActivity, prefs, redirectUnsafe), prefs.pro)) {
                     // Free limit reached: snap back and offer Pro.
                     button.setOnCheckedChangeListener(null)
                     button.isChecked = false
@@ -439,8 +440,7 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
                 onChange(checked)
-                showState(checked)
-                updateRedirectCount()
+                buildRedirectRows()
             }
         })
         item.findViewById<View>(R.id.app_row).setOnClickListener { switch.toggle() }
@@ -456,14 +456,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         redirectList.addView(item)
-    }
-
-    private fun updateRedirectCount() {
-        var count = 0
-        for (i in 0 until redirectList.childCount) {
-            if (redirectList.getChildAt(i).findViewById<SwitchCompat>(R.id.app_switch).isChecked) count++
-        }
-        redirectCountText.text = redirectCountLabel(count)
     }
 
     /** "3 on" with Pro, "3/5 on" without. */
@@ -520,7 +512,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.redirect_pick_title)
             .setAdapter(adapter) { _, which ->
                 val pkg = apps[which].packageName
-                val fits = RedirectRules.canEnableAnother(RedirectTargets.installedEnabled(this, prefs), prefs.pro)
+                val fits = RedirectRules.canEnableAnother(RedirectTargets.countedEnabled(this, prefs, redirectUnsafe), prefs.pro)
                 prefs.customPackages = prefs.customPackages + pkg
                 if (fits) prefs.redirectPackages = prefs.redirectPackages + pkg
                 buildRedirectRows()
@@ -528,13 +520,6 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
-    }
-
-    private fun isInstalled(pkg: String): Boolean = try {
-        packageManager.getApplicationInfo(pkg, 0)
-        true
-    } catch (e: PackageManager.NameNotFoundException) {
-        false
     }
 
     private fun labelOf(pkg: String): String? = try {

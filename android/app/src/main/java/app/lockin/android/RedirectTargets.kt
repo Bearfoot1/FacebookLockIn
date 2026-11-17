@@ -47,13 +47,14 @@ object RedirectTargets {
         false
     }
 
-    /** Switched-on redirect packages that are installed (uninstalled apps do not use up free slots). */
-    fun installedEnabled(context: Context, prefs: LockPrefs): Set<String> =
-        prefs.redirectPackages.filter { isInstalled(context, it) }.toSet()
+    /**
+     * Switched-on redirect packages that count: installed and safe on this phone.
+     * Uninstalled or unsafe apps neither use up free slots nor get redirected.
+     */
+    fun countedEnabled(context: Context, prefs: LockPrefs, unsafe: Set<String>): Set<String> =
+        prefs.redirectPackages.filter { isSafe(it, unsafe) && isInstalled(context, it) }.toSet()
 
     /** The packages the service actually redirects right now. */
     fun active(context: Context, prefs: LockPrefs, unsafe: Set<String> = unsafePackages(context)): Set<String> =
-        RedirectRules.activeRedirects(installedEnabled(context, prefs), prefs.pro)
-            .filter { isSafe(it, unsafe) }
-            .toSet()
+        RedirectRules.activeRedirects(countedEnabled(context, prefs, unsafe), prefs.pro)
 }

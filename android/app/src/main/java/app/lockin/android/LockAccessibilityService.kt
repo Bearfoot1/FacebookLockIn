@@ -43,22 +43,39 @@ class LockAccessibilityService : AccessibilityService() {
     private var lastRedirectPackage: String? = null
     private var lastRedirectAt = 0L
     private var lastTabTapAt = 0L
-    private var activeCache: Set<String> = emptySet()
-    private var activeCachedAt = 0L
+    /** Redirect apps in force; null when settings changed and it must be rebuilt. */
+    private var activeCache: Set<String>? = null
+    /** Packages never redirected on this phone; changes only when apps are (un)installed. */
+    private var unsafeCache: Set<String> = emptySet()
+    private var unsafeCachedAt = 0L
 
     /** Re-judges the front screen when a Marketplace grace window ends with no new event. */
     private val graceRecheck = Runnable { reevaluate() }
 
-    /** Re-judges the front screen when a redirect was skipped by the cooldown. */
-    private val redirectRecheck = Runnable { reevaluate() }
+    /**
+     * When a redirect was skipped by the cooldown: redirects once it ends if that app is
+     * still the focused full-screen app. Not a full re-evaluation, so a picture-in-picture
+     * window of the app (never focused) can't trigger repeated redirects.
+     */
+    private val redirectRecheck = Runnable {
+        if (!prefs.enabled) return@Runnable
+        val pkg = focusedAppPackage() ?: return@Runnable
+        if (pkg == lastRedirectPackage && RedirectRules.shouldRedirect(pkg, activeRedirects())) redirect(pkg)
+    }
 
     private val lockListener = LockPrefs.Listener { enabled ->
         if (!enabled) hideOverlay()
     }
 
+    /** Kept as a field: SharedPreferences holds change listeners weakly. */
+    private val settingsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        activeCache = null
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         prefs.registerListener(lockListener)
+        prefs.registerChangeListener(settingsListener)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -77,6 +94,7 @@ class LockAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         hideOverlay()
         prefs.unregisterListener(lockListener)
+        prefs.unregisterChangeListener(settingsListener)
         return super.onUnbind(intent)
     }
 
@@ -84,6 +102,7 @@ class LockAccessibilityService : AccessibilityService() {
         handler.removeCallbacksAndMessages(null)
         hideOverlay()
         prefs.unregisterListener(lockListener)
+        prefs.unregisterChangeListener(settingsListener)
         super.onDestroy()
     }
 
@@ -175,9 +194,8 @@ class LockAccessibilityService : AccessibilityService() {
     private fun evaluateFacebook(pkg: String, roots: List<AccessibilityNodeInfo>) {
         // Messenger is judged by the owner's toggle alone, so its text is not needed.
         val screen = if (pkg == MESSENGER_PACKAGE) {
-            // Leaving Facebook for Messenger forgets the last tab, so a post or reel link
-            // opened from a chat does not inherit Marketplace.
-            lastSelectedTab = null
+            // The last Facebook tab is kept through Messenger on purpose: "Message seller"
+            // opens Messenger, and Back must return to the (tab-bar-less) listing unblocked.
             ScreenInfo(emptyList(), null)
         } else {
             val parts = roots.map { readScreen(it) }
@@ -442,18 +460,42 @@ class LockAccessibilityService : AccessibilityService() {
                 RedirectRules.shouldRedirect(pkg, activeRedirects())
             )
 
-    /** Redirect apps in force: all of them with Pro, the first five without. */
     /**
-     * Cached for ACTIVE_CACHE_MS: this runs for every accessibility event from every app,
-     * and reading prefs and the package manager each time is too slow.
+     * Redirect apps in force (installed, safe, within the free limit unless Pro). This
+     * runs for every accessibility event from every app, so it is cached: rebuilt when
+     * settings change, and with the unsafe set every UNSAFE_CACHE_MS to pick up installs.
      */
     private fun activeRedirects(): Set<String> {
         val now = SystemClock.uptimeMillis()
-        if (activeCachedAt == 0L || now - activeCachedAt > ACTIVE_CACHE_MS) {
-            activeCache = RedirectTargets.active(this, prefs)
-            activeCachedAt = now
+        if (unsafeCachedAt == 0L || now - unsafeCachedAt > UNSAFE_CACHE_MS) {
+            unsafeCache = RedirectTargets.unsafePackages(this)
+            unsafeCachedAt = now
+            activeCache = null
         }
-        return activeCache
+        return activeCache ?: RedirectTargets.active(this, prefs, unsafeCache).also { activeCache = it }
+    }
+
+    /** Package of the focused full-screen app window, or null. */
+    @Suppress("DEPRECATION")
+    private fun focusedAppPackage(): String? {
+        val list = try {
+            windows
+        } catch (e: RuntimeException) {
+            return null
+        }
+        var found: String? = null
+        for (window in list) {
+            if (found == null && window.type == AccessibilityWindowInfo.TYPE_APPLICATION &&
+                (window.isFocused || window.isActive) &&
+                !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && window.isInPictureInPictureMode)
+            ) {
+                val root = window.root
+                found = root?.packageName?.toString()
+                root?.let { recycleNode(it) }
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) window.recycle()
+        }
+        return found
     }
 
     companion object {
@@ -463,7 +505,7 @@ class LockAccessibilityService : AccessibilityService() {
         private const val CONTENT_THROTTLE_MS = 250L
         private const val GO_BACK_CHECK_MS = 800L
         private const val REDIRECT_COOLDOWN_MS = 2000L
-        private const val ACTIVE_CACHE_MS = 3000L
+        private const val UNSAFE_CACHE_MS = 60_000L
         private const val TAB_TAP_INTERVAL_MS = 700L
         private const val FACEBOOK_PACKAGE = "com.facebook.katana"
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"

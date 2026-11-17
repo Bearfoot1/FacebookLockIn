@@ -110,6 +110,26 @@ class LockPrefs(context: Context) {
         write { putInt(KEY_BLOCK_COUNT, count) }
     }
 
+    /**
+     * Any change to the stored state. The caller must keep a strong reference to
+     * [listener]: SharedPreferences holds change listeners weakly.
+     */
+    fun registerChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        try {
+            prefs?.registerOnSharedPreferenceChangeListener(listener)
+        } catch (e: RuntimeException) {
+            // The caller falls back to its own refresh timer.
+        }
+    }
+
+    fun unregisterChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        try {
+            prefs?.unregisterOnSharedPreferenceChangeListener(listener)
+        } catch (e: RuntimeException) {
+            // Already gone.
+        }
+    }
+
     fun registerListener(listener: Listener) {
         val first = listeners.isEmpty()
         listeners.add(listener)
