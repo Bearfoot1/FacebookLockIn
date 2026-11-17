@@ -72,3 +72,36 @@ chrome.runtime.onMessage.addListener(function (message, sender) {
 
 // Also apply on every worker start, so rules survive worker restarts.
 applyCurrentState();
+
+// Backstop for in-app (history.pushState) navigation. The content script is missing or
+// orphaned in tabs that were open before an install, update or re-enable, and DNR only
+// sees full page loads. host_permissions let us see Facebook tab URLs without "tabs".
+var BLOCKED_PAGE = chrome.runtime.getURL('blocked.html');
+
+async function blockIfLocked(tabId, url) {
+  if (!url || !R.isLockedUrl(url)) return;
+  if (!(await readEnabled())) return;
+  try {
+    await chrome.tabs.update(tabId, { url: BLOCKED_PAGE });
+  } catch (e) {
+    // Tab closed meanwhile.
+  }
+}
+
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo) {
+  if (changeInfo.url) blockIfLocked(tabId, changeInfo.url);
+});
+
+// Facebook tabs already open when the extension starts (install, update, browser start).
+async function sweepOpenTabs() {
+  try {
+    var tabs = await chrome.tabs.query({ url: '*://*.facebook.com/*' });
+    tabs.forEach(function (tab) {
+      if (tab.id !== undefined) blockIfLocked(tab.id, tab.url);
+    });
+  } catch (e) {
+    // Nothing to sweep.
+  }
+}
+chrome.runtime.onInstalled.addListener(sweepOpenTabs);
+chrome.runtime.onStartup.addListener(sweepOpenTabs);

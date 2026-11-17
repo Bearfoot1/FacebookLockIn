@@ -55,13 +55,19 @@ object AppRules {
 
     // Facebook's bottom tab bar labels each tab "Marketplace, tab 4 of 6" (sometimes
     // with a suffix such as ", 1 new"). Seen on the Facebook app, Android 10, 2026-11.
-    private val TAB_DESCRIPTION = Regex("^\\s*(.+?),\\s*tab\\s+\\d+\\s+of\\s+\\d+\\b.*$", RegexOption.IGNORE_CASE)
+    // Other languages keep the shape with their own words ("Marketplace, pestaña 4 de 6",
+    // "Marketplace, onglet 4 sur 6"), so any word stands in for "tab" and "of".
+    private val TAB_DESCRIPTION = Regex("^\\s*(.+?),\\s*\\p{L}+\\s+\\d+\\s+\\p{L}+\\s+\\d+\\b.*$", RegexOption.IGNORE_CASE)
+
+    // Fallback guard: anything shaped like a Marketplace tab entry ("Marketplace, ...") is
+    // never taken as a Marketplace title, even in a format tabLabel does not recognise.
+    private val MARKETPLACE_TAB_LIKE = Regex("^\\s*marketplace\\s*[,،、，]", RegexOption.IGNORE_CASE)
 
     /** The tab's label ("Marketplace") if [description] is a tab bar description, else null. */
     fun tabLabel(description: String): String? =
         TAB_DESCRIPTION.matchEntire(description)?.groupValues?.get(1)?.trim()
 
-    private val TAB_COUNT = Regex(",\\s*tab\\s+\\d+\\s+of\\s+(\\d+)\\b", RegexOption.IGNORE_CASE)
+    private val TAB_COUNT = Regex(",\\s*\\p{L}+\\s+\\d+\\s+\\p{L}+\\s+(\\d+)\\b", RegexOption.IGNORE_CASE)
 
     /**
      * The selected tab of Facebook's main bottom bar, given every tab description on
@@ -104,7 +110,7 @@ object AppRules {
         if (!isFacebookPackage(packageName)) return false
         if (selectedTab != null) return !isMarketplaceTab(selectedTab)
         if (lastSelectedTab != null) return !isMarketplaceTab(lastSelectedTab)
-        return !isMarketplaceScreen(visibleTexts.filter { tabLabel(it) == null })
+        return !isMarketplaceScreen(visibleTexts.filter { tabLabel(it) == null && !MARKETPLACE_TAB_LIKE.containsMatchIn(it) })
     }
 
     private fun isMarketplaceTab(label: String): Boolean = label.trim().equals(MARKETPLACE_TITLE, ignoreCase = true)

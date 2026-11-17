@@ -1,6 +1,6 @@
 # Handover notes: facebook-lock-in
 
-Last updated: 2026-11-16 (redirect apps added). Read this first. The README is the user guide; this file is the status and decisions.
+Last updated: 2026-11-17 (bug hunt). Read this first. The README is the user guide; this file is the status and decisions.
 
 ## What the project is
 
@@ -15,6 +15,20 @@ Three surfaces:
 | Android core library (pure Kotlin/JVM, the rules) | `core/` | Built, 190 JVM tests pass |
 | Android app (AccessibilityService, overlay, UI) | `android/` | Built with Gradle; tested on a real phone (see "Phone test") |
 | Phone browsers (Chrome, Firefox, Samsung, etc. on Android) | `android/` (URL-bar reading in the accessibility service) | Chrome and Samsung Internet tested; Firefox not yet |
+
+## Bug hunt (2026-11-17)
+
+Three review passes (commits 662062d, 468f69d and the one after). Fixed, not yet phone-tested:
+
+- Redirect apps: cooldown retry (only for the focused full-screen app, never PiP); uninstalled/unsafe apps don't use free slots; rows show Redirecting / Paused · Pro only / Can't redirect / Not installed; browsers, home screen and dialer are never redirected (RedirectTargets).
+- Picture-in-picture windows are skipped when finding the front app (a floating video used to leave Facebook unjudged).
+- Tab bar parsing accepts any language (); the text fallback ignores any  entry, so an unrecognised tab format blocks instead of allowing every screen.
+- Browsers: an unreadable URL bar (hidden while scrolling) or a focused one (user typing) keeps the current state instead of hiding the overlay. Any app that opens https links is judged as a browser (Kiwi, Firefox Nightly...). Throttled content changes get a trailing recheck.
+- Allowed:  and  (outbound link shim; its target is judged on load), in both WebRules.kt and rules.js.
+- Extension: background tabs.onUpdated backstop for in-app navigation, plus a sweep of open Facebook tabs on install/startup.
+- Reverted: clearing the last tab on Messenger (blocked Message seller -> Back). Known gap kept: a reel/post link opened from Messenger inherits the Marketplace tab.
+
+Known, not fixed: lapsed Pro is only noticed when the main screen opens (billing not live yet); Chrome Custom Tabs show host only, so they're allowed like Samsung Internet; NOTES' Phone test says the overlay is focusable, but it uses FLAG_NOT_FOCUSABLE now.
 
 ## Redirect apps (2026-11-16)
 

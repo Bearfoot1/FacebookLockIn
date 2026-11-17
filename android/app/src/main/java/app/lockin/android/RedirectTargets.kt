@@ -14,14 +14,22 @@ import app.lockin.core.RedirectRules
  */
 object RedirectTargets {
 
+    /** Apps on this device that open any https link (browsers, including ones not in AppRules). */
+    fun browserPackages(context: Context): Set<String> = try {
+        val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.example.com/"))
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+        context.packageManager.queryIntentActivities(web, PackageManager.MATCH_ALL)
+            .map { it.activityInfo.packageName }
+            .toSet()
+    } catch (e: RuntimeException) {
+        emptySet()
+    }
+
     /** Packages that are never redirected on this device, on top of RedirectRules.canRedirect. */
     fun unsafePackages(context: Context): Set<String> {
         val pm = context.packageManager
-        val out = HashSet<String>()
+        val out = HashSet<String>(browserPackages(context))
         try {
-            val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.example.com/"))
-                .addCategory(Intent.CATEGORY_BROWSABLE)
-            pm.queryIntentActivities(web, PackageManager.MATCH_ALL).forEach { out += it.activityInfo.packageName }
             val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
             pm.queryIntentActivities(home, 0).forEach { out += it.activityInfo.packageName }
         } catch (e: RuntimeException) {

@@ -25,6 +25,10 @@ object WebRules {
         "messenger",
         "login",
         "login.php",
+        // Logging out must work, and l.php is the outbound-link shim (l./lm.facebook.com):
+        // its target is judged again when it loads.
+        "logout.php",
+        "l.php",
         "checkpoint",
         "recover",
         "two_step_verification",

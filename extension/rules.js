@@ -20,6 +20,8 @@
     'messenger',
     'login',
     'login.php',
+    'logout.php',
+    'l.php',
     'checkpoint',
     'recover',
     'two_step_verification',

@@ -24,6 +24,24 @@ class AppRulesTest {
     }
 
     @Test
+    fun tabLabelParsesOtherLanguages() {
+        assertEquals("Marketplace", AppRules.tabLabel("Marketplace, pestaña 4 de 6"))
+        assertEquals("Accueil", AppRules.tabLabel("Accueil, onglet 1 sur 6"))
+        val spanish = listOf("Inicio, pestaña 1 de 6", "Marketplace, pestaña 4 de 6")
+        assertEquals("Inicio", AppRules.selectedMainTab(spanish.map { it to it.startsWith("Inicio") }))
+    }
+
+    @Test
+    fun unrecognisedTabFormatDoesNotUnlockTheFeed() {
+        // If Facebook changes the tab wording, the always-present Marketplace tab entry
+        // must not count as a Marketplace title.
+        val texts = listOf("Home tab", "Marketplace, 4 of 6", "What's on your mind?")
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", texts))
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", listOf("Marketplace，标签 4/6")))
+        assertFalse(AppRules.isBlockedAppScreen("com.facebook.katana", listOf("Marketplace", "Today's picks")))
+    }
+
+    @Test
     fun feedWithTabBarIsBlocked() {
         // The tab bar's "Marketplace, tab 4 of 6" text must not unlock the feed.
         assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar, selectedTab = "Home"))

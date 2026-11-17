@@ -132,6 +132,16 @@ class WebRulesTest {
     }
 
     @Test
+    fun logoutAndOutboundLinkShimAreAllowed() {
+        assertTrue(WebRules.isAllowedUrl("https://www.facebook.com/logout.php"))
+        assertTrue(WebRules.isAllowedUrl("https://l.facebook.com/l.php?u=https%3A%2F%2Fexample.com%2F&h=x"))
+        assertTrue(WebRules.isAllowedUrl("https://lm.facebook.com/l.php?u=https%3A%2F%2Fexample.com%2F"))
+        // Only the exact segment: lookalike paths stay locked.
+        assertTrue(WebRules.isLockedUrl("https://www.facebook.com/l.phpx"))
+        assertTrue(WebRules.isLockedUrl("https://www.facebook.com/logout"))
+    }
+
+    @Test
     fun emptyStringIsLockedAsHome() {
         assertFalse(WebRules.isAllowedUrl(""))
         assertTrue(WebRules.isLockedUrl(""))
@@ -147,7 +157,7 @@ class WebRulesTest {
     fun allowedPathPrefixesMatchSpec() {
         assertEquals(
             listOf(
-                "marketplace", "messages", "messenger", "login", "login.php", "checkpoint", "recover",
+                "marketplace", "messages", "messenger", "login", "login.php", "logout.php", "l.php", "checkpoint", "recover",
                 "two_step_verification", "help", "policies", "privacy", "terms", "cookies",
             ),
             WebRules.allowedPathPrefixes,

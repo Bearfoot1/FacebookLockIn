@@ -48,6 +48,11 @@ class LockAccessibilityService : AccessibilityService() {
     /** Packages never redirected on this phone; changes only when apps are (un)installed. */
     private var unsafeCache: Set<String> = emptySet()
     private var unsafeCachedAt = 0L
+    /** Apps on this phone that open web links; judged like browsers. */
+    private var browserCache: Set<String> = emptySet()
+
+    /** Judges the front screen once more after a throttled content change. */
+    private val throttleRecheck = Runnable { reevaluate() }
 
     /** Re-judges the front screen when a Marketplace grace window ends with no new event. */
     private val graceRecheck = Runnable { reevaluate() }
@@ -119,7 +124,13 @@ class LockAccessibilityService : AccessibilityService() {
 
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
             val now = SystemClock.uptimeMillis()
-            if (now - lastContentEvaluation < CONTENT_THROTTLE_MS) return
+            if (now - lastContentEvaluation < CONTENT_THROTTLE_MS) {
+                // Dropped, but look once more when the window ends: the last change in a
+                // burst (a URL bar update after in-page navigation) must still be judged.
+                handler.removeCallbacks(throttleRecheck)
+                handler.postDelayed(throttleRecheck, CONTENT_THROTTLE_MS - (now - lastContentEvaluation) + 20)
+                return
+            }
             lastContentEvaluation = now
         }
 
@@ -152,7 +163,10 @@ class LockAccessibilityService : AccessibilityService() {
         var frontPackage: String? = null
         // Windows are listed top first.
         for (window in list) {
-            if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION) {
+            // A picture-in-picture window sits above the full-screen app; taking it as the
+            // front app would leave Facebook unjudged for as long as the video floats.
+            val pip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && window.isInPictureInPictureMode
+            if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION && !pip) {
                 val root = window.root
                 if (root != null) {
                     val pkg = root.packageName?.toString()
@@ -173,7 +187,7 @@ class LockAccessibilityService : AccessibilityService() {
             // Keep the current state while the notification shade or quick settings are open.
             pkg == SYSTEM_UI_PACKAGE -> Unit
             AppRules.isFacebookPackage(pkg) -> evaluateFacebook(pkg, roots)
-            AppRules.isBrowserPackage(pkg) -> evaluateBrowser(pkg, roots)
+            isBrowser(pkg) -> evaluateBrowser(pkg, roots)
             RedirectRules.shouldRedirect(pkg, activeRedirects()) -> {
                 lastSelectedTab = null
                 hideOverlay()
@@ -287,11 +301,13 @@ class LockAccessibilityService : AccessibilityService() {
     }
 
     private fun evaluateBrowser(pkg: String, roots: List<AccessibilityNodeInfo>) {
-        // If the URL bar cannot be read, the browser is treated as allowed (fail open).
-        // A bare host ("m.facebook.com", how Samsung Internet shows every page) is
-        // allowed too: the page cannot be told apart from Marketplace.
-        val url = roots.firstNotNullOfOrNull { readUrlBar(pkg, it) }
-        if (url != null && !WebRules.isHostOnlyDisplay(url) && WebRules.isLockedUrl(url)) {
+        // If the URL bar cannot be read (Chrome hides it while scrolling and in full
+        // screen) or the user is typing in it, keep the current state: a showing block
+        // screen stays, nothing new is blocked. A bare host ("m.facebook.com", how
+        // Samsung Internet shows every page) is allowed: it can't be told from Marketplace.
+        val url = roots.firstNotNullOfOrNull { readUrlBar(pkg, it) } ?: return
+        if (url == URL_BEING_EDITED) return
+        if (!WebRules.isHostOnlyDisplay(url) && WebRules.isLockedUrl(url)) {
             showOverlay("web:$pkg:$url")
         } else {
             hideOverlay()
@@ -350,6 +366,8 @@ class LockAccessibilityService : AccessibilityService() {
             val nodes = root.findAccessibilityNodeInfosByViewId(id) ?: continue
             try {
                 for (node in nodes) {
+                    // A focused URL bar holds what the user is typing, not the page's URL.
+                    if (node.isFocused) return URL_BEING_EDITED
                     val text = node.text?.toString()?.trim()
                     if (!text.isNullOrEmpty()) return toFullUrl(text)
                 }
@@ -366,7 +384,7 @@ class LockAccessibilityService : AccessibilityService() {
         walkTree(root) { node ->
             val text = node.text?.toString()?.trim()
             if (!text.isNullOrEmpty() && isEditable(node) && URL_SHAPE.matches(text)) {
-                found = toFullUrl(text)
+                found = if (node.isFocused) URL_BEING_EDITED else toFullUrl(text)
                 true
             } else {
                 false
@@ -456,9 +474,26 @@ class LockAccessibilityService : AccessibilityService() {
     private fun isWatched(pkg: String?): Boolean =
         pkg != null && (
             AppRules.isFacebookPackage(pkg) ||
-                AppRules.isBrowserPackage(pkg) ||
+                isBrowser(pkg) ||
                 RedirectRules.shouldRedirect(pkg, activeRedirects())
             )
+
+    /** A known browser, or any app on this phone that opens web links (Kiwi, Firefox Nightly, ...). */
+    private fun isBrowser(pkg: String): Boolean {
+        if (AppRules.isBrowserPackage(pkg)) return true
+        refreshDeviceCaches()
+        return pkg in browserCache
+    }
+
+    /** Re-reads which apps are browsers / never-redirect, every UNSAFE_CACHE_MS (installs). */
+    private fun refreshDeviceCaches() {
+        val now = SystemClock.uptimeMillis()
+        if (unsafeCachedAt != 0L && now - unsafeCachedAt <= UNSAFE_CACHE_MS) return
+        browserCache = RedirectTargets.browserPackages(this) - AppRules.facebookPackages
+        unsafeCache = RedirectTargets.unsafePackages(this)
+        unsafeCachedAt = now
+        activeCache = null
+    }
 
     /**
      * Redirect apps in force (installed, safe, within the free limit unless Pro). This
@@ -466,12 +501,7 @@ class LockAccessibilityService : AccessibilityService() {
      * settings change, and with the unsafe set every UNSAFE_CACHE_MS to pick up installs.
      */
     private fun activeRedirects(): Set<String> {
-        val now = SystemClock.uptimeMillis()
-        if (unsafeCachedAt == 0L || now - unsafeCachedAt > UNSAFE_CACHE_MS) {
-            unsafeCache = RedirectTargets.unsafePackages(this)
-            unsafeCachedAt = now
-            activeCache = null
-        }
+        refreshDeviceCaches()
         return activeCache ?: RedirectTargets.active(this, prefs, unsafeCache).also { activeCache = it }
     }
 
@@ -506,6 +536,8 @@ class LockAccessibilityService : AccessibilityService() {
         private const val GO_BACK_CHECK_MS = 800L
         private const val REDIRECT_COOLDOWN_MS = 2000L
         private const val UNSAFE_CACHE_MS = 60_000L
+        /** readUrlBar's answer while the user is typing in the URL bar. */
+        private const val URL_BEING_EDITED = "\u0000editing"
         private const val TAB_TAP_INTERVAL_MS = 700L
         private const val FACEBOOK_PACKAGE = "com.facebook.katana"
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
