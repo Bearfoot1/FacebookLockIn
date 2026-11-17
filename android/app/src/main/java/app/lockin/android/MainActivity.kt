@@ -55,6 +55,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var confirmInput: EditText
     private lateinit var confirmOffButton: Button
     private lateinit var redirectList: LinearLayout
+    /** Packages never redirected on this phone (browsers, home screen, dialer); refreshed with the list. */
+    private var redirectUnsafe: Set<String> = emptySet()
     private lateinit var redirectEmptyText: TextView
     private lateinit var redirectCountText: TextView
     private lateinit var themeList: LinearLayout
@@ -352,6 +354,7 @@ class MainActivity : AppCompatActivity() {
      * or removed while the screen was away show up.
      */
     private fun buildRedirectRows() {
+        redirectUnsafe = RedirectTargets.unsafePackages(this)
         redirectList.removeAllViews()
         val enabled = prefs.redirectPackages
         var onCount = 0
@@ -363,7 +366,7 @@ class MainActivity : AppCompatActivity() {
         for ((app, installed) in common) {
             val on = app.packages.any { it in enabled }
             if (on) onCount++
-            addRow(installed, app.name, on, removable = false) { checked ->
+            addRow(installed, app.packages.toSet(), app.name, on, removable = false) { checked ->
                 val now = prefs.redirectPackages
                 prefs.redirectPackages = if (checked) now + app.packages else now - app.packages.toSet()
             }
@@ -376,7 +379,7 @@ class MainActivity : AppCompatActivity() {
         for ((pkg, label) in custom) {
             val on = pkg in enabled
             if (on) onCount++
-            addRow(pkg, label, on, removable = true) { checked ->
+            addRow(pkg, setOf(pkg), label, on, removable = true) { checked ->
                 val now = prefs.redirectPackages
                 prefs.redirectPackages = if (checked) now + pkg else now - pkg
             }
@@ -390,22 +393,44 @@ class MainActivity : AppCompatActivity() {
         redirectEmptyText.visibility = if (common.isEmpty() && custom.isEmpty()) View.VISIBLE else View.GONE
     }
 
-    private fun addRow(pkg: String, label: String, on: Boolean, removable: Boolean, onChange: (Boolean) -> Unit) {
+    private fun addRow(
+        pkg: String,
+        packages: Set<String>,
+        label: String,
+        on: Boolean,
+        removable: Boolean,
+        onChange: (Boolean) -> Unit,
+    ) {
         val item = LayoutInflater.from(this).inflate(R.layout.item_redirect_app, redirectList, false)
         item.findViewById<TextView>(R.id.app_name).text = label
         item.findViewById<ImageView>(R.id.app_icon).setImageDrawable(iconOf(pkg))
         val state = item.findViewById<TextView>(R.id.app_state)
         val switch = item.findViewById<SwitchCompat>(R.id.app_switch)
         fun showState(checked: Boolean) {
-            state.setText(if (checked) R.string.redirect_on else R.string.redirect_off)
-            state.setTextColor(if (checked) LockTheme.accent(this) else getColor(R.color.text_muted))
+            // Show what the service really does: a switched-on app can be ignored when it
+            // is unsafe on this phone, or past the free limit after Pro lapsed.
+            val unsafe = packages.none { RedirectTargets.isSafe(it, redirectUnsafe) }
+            val active = checked && packages.any { it in RedirectTargets.active(this, prefs, redirectUnsafe) }
+            when {
+                !checked -> state.setText(R.string.redirect_off)
+                active -> state.setText(R.string.redirect_on)
+                unsafe -> state.setText(R.string.redirect_unsafe)
+                else -> state.setText(R.string.redirect_paused)
+            }
+            state.setTextColor(
+                when {
+                    active -> LockTheme.accent(this)
+                    checked -> getColor(R.color.danger)
+                    else -> getColor(R.color.text_muted)
+                },
+            )
         }
         switch.isChecked = on
         switch.contentDescription = label
         showState(on)
         switch.setOnCheckedChangeListener(object : android.widget.CompoundButton.OnCheckedChangeListener {
             override fun onCheckedChanged(button: android.widget.CompoundButton, checked: Boolean) {
-                if (checked && !RedirectRules.canEnableAnother(prefs.redirectPackages, prefs.pro)) {
+                if (checked && !RedirectRules.canEnableAnother(RedirectTargets.installedEnabled(this@MainActivity, prefs), prefs.pro)) {
                     // Free limit reached: snap back and offer Pro.
                     button.setOnCheckedChangeListener(null)
                     button.isChecked = false
@@ -455,7 +480,8 @@ class MainActivity : AppCompatActivity() {
             .distinct()
             .filter { pkg ->
                 pkg != packageName &&
-                    RedirectRules.canRedirect(pkg) &&
+                    // Never browsers (Marketplace may open in one and loop), the home screen or the dialer.
+                    RedirectTargets.isSafe(pkg, redirectUnsafe) &&
                     pkg !in listed &&
                     // Common apps already have their own toggle.
                     RedirectRules.commonAppFor(pkg) == null
@@ -494,7 +520,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.redirect_pick_title)
             .setAdapter(adapter) { _, which ->
                 val pkg = apps[which].packageName
-                val fits = RedirectRules.canEnableAnother(prefs.redirectPackages, prefs.pro)
+                val fits = RedirectRules.canEnableAnother(RedirectTargets.installedEnabled(this, prefs), prefs.pro)
                 prefs.customPackages = prefs.customPackages + pkg
                 if (fits) prefs.redirectPackages = prefs.redirectPackages + pkg
                 buildRedirectRows()

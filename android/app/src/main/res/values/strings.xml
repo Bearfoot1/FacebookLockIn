@@ -39,6 +39,8 @@
     <string name="redirect_remove">Remove</string>
     <string name="redirect_on">Redirecting</string>
     <string name="redirect_off">Allowed</string>
+    <string name="redirect_paused">Paused · Pro only</string>
+    <string name="redirect_unsafe">Can’t redirect</string>
     <string name="redirect_pick_title">Redirect which app?</string>
     <string name="redirect_pick_none">No other apps to add.</string>
     <string name="redirect_toast">%1$s? Nope. Marketplace.</string>

@@ -43,9 +43,14 @@ class LockAccessibilityService : AccessibilityService() {
     private var lastRedirectPackage: String? = null
     private var lastRedirectAt = 0L
     private var lastTabTapAt = 0L
+    private var activeCache: Set<String> = emptySet()
+    private var activeCachedAt = 0L
 
     /** Re-judges the front screen when a Marketplace grace window ends with no new event. */
     private val graceRecheck = Runnable { reevaluate() }
+
+    /** Re-judges the front screen when a redirect was skipped by the cooldown. */
+    private val redirectRecheck = Runnable { reevaluate() }
 
     private val lockListener = LockPrefs.Listener { enabled ->
         if (!enabled) hideOverlay()
@@ -170,6 +175,9 @@ class LockAccessibilityService : AccessibilityService() {
     private fun evaluateFacebook(pkg: String, roots: List<AccessibilityNodeInfo>) {
         // Messenger is judged by the owner's toggle alone, so its text is not needed.
         val screen = if (pkg == MESSENGER_PACKAGE) {
+            // Leaving Facebook for Messenger forgets the last tab, so a post or reel link
+            // opened from a chat does not inherit Marketplace.
+            lastSelectedTab = null
             ScreenInfo(emptyList(), null)
         } else {
             val parts = roots.map { readScreen(it) }
@@ -213,7 +221,8 @@ class LockAccessibilityService : AccessibilityService() {
                 val label = node.contentDescription?.toString()?.let { AppRules.tabLabel(it) }
                 if (label != null && label.equals("Marketplace", ignoreCase = true)) {
                     tapped = clickSelfOrParent(node)
-                    true
+                    // Stop only on a successful tap; otherwise try the next matching node.
+                    tapped
                 } else {
                     false
                 }
@@ -383,7 +392,14 @@ class LockAccessibilityService : AccessibilityService() {
     /** Sends the user from a redirect app to Marketplace, at most once per REDIRECT_COOLDOWN_MS per app. */
     private fun redirect(pkg: String) {
         val now = SystemClock.uptimeMillis()
-        if (pkg == lastRedirectPackage && now - lastRedirectAt < REDIRECT_COOLDOWN_MS) return
+        if (pkg == lastRedirectPackage && now - lastRedirectAt < REDIRECT_COOLDOWN_MS) {
+            // Skipped, but later events in this app are content changes, which never
+            // redirect. Look again when the cooldown ends so the app can't be kept open
+            // by switching back to it quickly.
+            handler.removeCallbacks(redirectRecheck)
+            handler.postDelayed(redirectRecheck, REDIRECT_COOLDOWN_MS - (now - lastRedirectAt) + 50)
+            return
+        }
         lastRedirectPackage = pkg
         lastRedirectAt = now
         Log.d(TAG, "redirect $pkg to Marketplace")
@@ -427,7 +443,18 @@ class LockAccessibilityService : AccessibilityService() {
             )
 
     /** Redirect apps in force: all of them with Pro, the first five without. */
-    private fun activeRedirects(): Set<String> = RedirectRules.activeRedirects(prefs.redirectPackages, prefs.pro)
+    /**
+     * Cached for ACTIVE_CACHE_MS: this runs for every accessibility event from every app,
+     * and reading prefs and the package manager each time is too slow.
+     */
+    private fun activeRedirects(): Set<String> {
+        val now = SystemClock.uptimeMillis()
+        if (activeCachedAt == 0L || now - activeCachedAt > ACTIVE_CACHE_MS) {
+            activeCache = RedirectTargets.active(this, prefs)
+            activeCachedAt = now
+        }
+        return activeCache
+    }
 
     companion object {
         private const val MAX_NODES = 1500
@@ -436,6 +463,7 @@ class LockAccessibilityService : AccessibilityService() {
         private const val CONTENT_THROTTLE_MS = 250L
         private const val GO_BACK_CHECK_MS = 800L
         private const val REDIRECT_COOLDOWN_MS = 2000L
+        private const val ACTIVE_CACHE_MS = 3000L
         private const val TAB_TAP_INTERVAL_MS = 700L
         private const val FACEBOOK_PACKAGE = "com.facebook.katana"
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
