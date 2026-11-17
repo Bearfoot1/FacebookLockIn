@@ -43,6 +43,13 @@ object MarketplaceLauncher {
         val launch = context.packageManager.getLaunchIntentForPackage(FACEBOOK_PACKAGE)
         if (launch != null && tryStart(context, launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))) return
 
+        // A real browser, never a Facebook wrapper app that also claims facebook.com links
+        // (it is always blocked, so Marketplace would be unreachable): the selector makes
+        // only apps that open every https link eligible.
+        val inBrowser = Intent(Intent.ACTION_VIEW, marketplace).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        inBrowser.selector = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.example.com/"))
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+        if (tryStart(context, inBrowser)) return
         tryStart(context, Intent(Intent.ACTION_VIEW, marketplace).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 

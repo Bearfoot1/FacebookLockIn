@@ -25,8 +25,8 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["blocked.html", "blocked.css", "blocked.js", "rules.js", "motivation.js"],
-      "matches": ["*://*.facebook.com/*"]
+      "resources": ["blocked.html"],
+      "matches": ["<all_urls>"]
     }
   ],
   "action": {

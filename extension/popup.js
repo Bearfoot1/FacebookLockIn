@@ -37,8 +37,12 @@
       // Not available: leave the warning hidden.
     }
     try {
-      chrome.permissions.contains({ origins: ['*://*.facebook.com/*'] }, function (granted) {
-        document.getElementById('access-warn').classList.toggle('hidden', granted === true);
+      // Any grant that covers the main Facebook hosts is enough; a narrower
+      // "specific sites" grant still locks those.
+      chrome.permissions.contains({ origins: ['https://www.facebook.com/*'] }, function (www) {
+        chrome.permissions.contains({ origins: ['https://m.facebook.com/*'] }, function (m) {
+          document.getElementById('access-warn').classList.toggle('hidden', www === true || m === true);
+        });
       });
     } catch (e) {
       // Not available.

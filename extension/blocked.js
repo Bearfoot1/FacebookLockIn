@@ -38,5 +38,8 @@
     window.location.href = R.marketplaceSearchUrl(input.value);
   });
 
-  loadAndCount();
+  // Only a real visit counts. blocked.html is web-accessible (so a redirect from a link
+  // click can show it), which also lets any page load it hidden in a frame: that must
+  // not raise the counter or rotate the quote.
+  if (window.top === window) loadAndCount();
 })();

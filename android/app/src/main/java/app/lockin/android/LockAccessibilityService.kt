@@ -52,8 +52,6 @@ class LockAccessibilityService : AccessibilityService() {
     private var unsafeCachedAt = 0L
     /** Apps on this phone that open web links; judged like browsers. */
     private var browserCache: Set<String> = emptySet()
-    /** Apps on this phone that open facebook.com links but not every link: Facebook wrappers. */
-    private var wrapperCache: Set<String> = emptySet()
 
     /** Judges the front screen once more after a throttled content change. */
     // A content change, not an app switch: must not trigger a redirect (see evaluate).
@@ -86,6 +84,11 @@ class LockAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         prefs.registerListener(lockListener)
         prefs.registerChangeListener(settingsListener)
+        // Judge the screen that is already up. After the service (re)connects (enabled
+        // while on a blocked page, app update, system restart, another tool suspending
+        // accessibility), a browser sitting on a blocked page sends no new events until
+        // the user switches apps, so it would stay unblocked. Seen on the emulator.
+        handler.postDelayed({ reevaluate() }, CONNECT_RECHECK_MS)
         // A newly installed browser or redirect app is picked up at once, not after the cache timer.
         val filter = android.content.IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
@@ -277,7 +280,7 @@ class LockAccessibilityService : AccessibilityService() {
             blockMessenger = prefs.blockMessenger,
         )
         // Tab labels and the decision only; screen text stays out of the log.
-        Log.d(TAG, "$pkg tab=${screen.selectedTab} last=$lastSelectedTab blocked=$blocked")
+        Log.d(TAG, "$pkg tab=${screen.selectedTab} last=${lastSelectedTab.takeIf { lastTabPackage == pkg }} blocked=$blocked")
         if (!blocked) {
             // Only reaching Marketplace in Facebook ends the grace window, not an allowed Messenger.
             if (pkg != MESSENGER_PACKAGE) MarketplaceLauncher.arrived()
@@ -539,11 +542,12 @@ class LockAccessibilityService : AccessibilityService() {
                 RedirectRules.shouldRedirect(pkg, activeRedirects())
             )
 
-    private fun isFacebookWrapper(pkg: String): Boolean {
-        if (pkg in AppRules.facebookWrapperPackages) return true
-        refreshDeviceCaches()
-        return pkg in wrapperCache
-    }
+    /**
+     * Known third-party Facebook wrappers only. Not "any app that opens facebook.com links":
+     * downloaders and post schedulers declare that too, and blocking them wholesale would
+     * break the owner's "only act on Facebook" rule (2026-11-06).
+     */
+    private fun isFacebookWrapper(pkg: String): Boolean = pkg in AppRules.facebookWrapperPackages
 
     /** A known browser, or any app on this phone that opens web links (Kiwi, Firefox Nightly, ...). */
     private fun isBrowser(pkg: String): Boolean {
@@ -558,12 +562,6 @@ class LockAccessibilityService : AccessibilityService() {
         if (unsafeCachedAt != 0L && now - unsafeCachedAt <= UNSAFE_CACHE_MS) return
         val browsers = RedirectTargets.browserPackages(context = this)
         browserCache = browsers - AppRules.facebookPackages
-        // Meta's own apps (Instagram, WhatsApp, Workplace...) may claim facebook.com links too;
-        // they are not wrappers and must never be blocked wholesale.
-        wrapperCache = (RedirectTargets.facebookLinkHandlers(this) - browsers - AppRules.facebookPackages - packageName)
-            .filterNot { pkg -> META_PREFIXES.any { pkg.startsWith(it) } }
-            .toSet()
-        if (wrapperCache.isNotEmpty()) Log.d(TAG, "facebook wrappers: $wrapperCache")
         unsafeCache = RedirectTargets.unsafePackages(this, browsers)
         unsafeCachedAt = now
         activeCache = null
@@ -613,7 +611,7 @@ class LockAccessibilityService : AccessibilityService() {
         private const val GO_BACK_CHECK_MS = 800L
         private const val REDIRECT_COOLDOWN_MS = 2000L
         private const val UNSAFE_CACHE_MS = 60_000L
-        private val META_PREFIXES = listOf("com.facebook.", "com.instagram.", "com.whatsapp", "com.oculus.", "com.meta.")
+        private const val CONNECT_RECHECK_MS = 500L
         /** readUrlBar's answer while the user is typing in the URL bar. */
         private const val URL_BEING_EDITED = "\u0000editing"
         private const val TAB_TAP_INTERVAL_MS = 700L

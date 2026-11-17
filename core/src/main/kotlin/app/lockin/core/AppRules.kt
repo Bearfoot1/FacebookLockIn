@@ -15,9 +15,9 @@ object AppRules {
 
     /**
      * Third-party Facebook wrappers (m.facebook.com in a WebView, no URL bar or tab bar to
-     * read). They can't be judged screen by screen, so they are always blocked. The
-     * Android layer also treats any app that opens facebook.com links, but not every
-     * link, as a wrapper.
+     * read). They can't be judged screen by screen, so they are always blocked. Only
+     * known packages: other apps that open facebook.com links (downloaders, post
+     * schedulers) are not Facebook and must not be blocked wholesale.
      */
     val facebookWrapperPackages: Set<String> = setOf(
         "io.friendly",

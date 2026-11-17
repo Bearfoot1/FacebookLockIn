@@ -25,20 +25,6 @@ object RedirectTargets {
         emptySet()
     }
 
-    /**
-     * Apps that open facebook.com links. Minus the browsers (which open every link) and
-     * Facebook's own apps, what is left are Facebook wrappers (Friendly, Frost, ...).
-     */
-    fun facebookLinkHandlers(context: Context): Set<String> = try {
-        val fb = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.facebook.com/"))
-            .addCategory(Intent.CATEGORY_BROWSABLE)
-        context.packageManager.queryIntentActivities(fb, PackageManager.MATCH_ALL)
-            .map { it.activityInfo.packageName }
-            .toSet()
-    } catch (e: RuntimeException) {
-        emptySet()
-    }
-
     /** Packages that are never redirected on this device, on top of RedirectRules.canRedirect. */
     fun unsafePackages(context: Context, browsers: Set<String> = browserPackages(context)): Set<String> {
         val pm = context.packageManager
