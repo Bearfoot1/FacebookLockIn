@@ -26,6 +26,26 @@
     confirmBtn.disabled = true;
   }
 
+  // Gaps the extension can't close itself, only point out: Chrome runs extensions in
+  // Incognito only when the user allows it, and site access can be narrowed to "on click".
+  function checkCoverage() {
+    try {
+      chrome.extension.isAllowedIncognitoAccess(function (allowed) {
+        document.getElementById('incognito-warn').classList.toggle('hidden', allowed === true);
+      });
+    } catch (e) {
+      // Not available: leave the warning hidden.
+    }
+    try {
+      chrome.permissions.contains({ origins: ['*://*.facebook.com/*'] }, function (granted) {
+        document.getElementById('access-warn').classList.toggle('hidden', granted === true);
+      });
+    } catch (e) {
+      // Not available.
+    }
+  }
+  checkCoverage();
+
   function load() {
     chrome.storage.local.get({ enabled: true, blockCount: 0 }, render);
   }

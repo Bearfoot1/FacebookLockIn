@@ -40,6 +40,8 @@ class LockAccessibilityService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     /** Label of the bottom tab last seen selected in the Facebook app; null after leaving it. */
     private var lastSelectedTab: String? = null
+    /** The Facebook package [lastSelectedTab] was seen in. */
+    private var lastTabPackage: String? = null
     private var lastRedirectPackage: String? = null
     private var lastRedirectAt = 0L
     private var lastTabTapAt = 0L
@@ -50,6 +52,8 @@ class LockAccessibilityService : AccessibilityService() {
     private var unsafeCachedAt = 0L
     /** Apps on this phone that open web links; judged like browsers. */
     private var browserCache: Set<String> = emptySet()
+    /** Apps on this phone that open facebook.com links but not every link: Facebook wrappers. */
+    private var wrapperCache: Set<String> = emptySet()
 
     /** Judges the front screen once more after a throttled content change. */
     // A content change, not an app switch: must not trigger a redirect (see evaluate).
@@ -226,6 +230,11 @@ class LockAccessibilityService : AccessibilityService() {
             // Keep the current state while the notification shade or quick settings are open.
             pkg == SYSTEM_UI_PACKAGE -> Unit
             AppRules.isFacebookPackage(pkg) -> evaluateFacebook(pkg, roots)
+            // Facebook wrapper apps show the whole site with nothing to judge: always blocked.
+            isFacebookWrapper(pkg) -> {
+                lastSelectedTab = null
+                showOverlay("app:$pkg")
+            }
             isBrowser(pkg) -> evaluateBrowser(pkg, roots)
             RedirectRules.shouldRedirect(pkg, activeRedirects()) -> {
                 lastSelectedTab = null
@@ -254,12 +263,17 @@ class LockAccessibilityService : AccessibilityService() {
             val parts = roots.map { readScreen(it) }
             ScreenInfo(parts.flatMap { it.texts }, parts.firstNotNullOfOrNull { it.selectedTab })
         }
-        if (screen.selectedTab != null) lastSelectedTab = screen.selectedTab
+        if (screen.selectedTab != null) {
+            lastSelectedTab = screen.selectedTab
+            lastTabPackage = pkg
+        }
         val blocked = AppRules.isBlockedAppScreen(
             pkg,
             screen.texts,
             screen.selectedTab,
-            lastSelectedTab,
+            // Only the tab seen in this same app counts: Marketplace remembered from the
+            // main app must not unlock Facebook Lite or Business Suite screens.
+            lastSelectedTab.takeIf { lastTabPackage == pkg },
             blockMessenger = prefs.blockMessenger,
         )
         // Tab labels and the decision only; screen text stays out of the log.
@@ -521,8 +535,15 @@ class LockAccessibilityService : AccessibilityService() {
         pkg != null && (
             AppRules.isFacebookPackage(pkg) ||
                 isBrowser(pkg) ||
+                isFacebookWrapper(pkg) ||
                 RedirectRules.shouldRedirect(pkg, activeRedirects())
             )
+
+    private fun isFacebookWrapper(pkg: String): Boolean {
+        if (pkg in AppRules.facebookWrapperPackages) return true
+        refreshDeviceCaches()
+        return pkg in wrapperCache
+    }
 
     /** A known browser, or any app on this phone that opens web links (Kiwi, Firefox Nightly, ...). */
     private fun isBrowser(pkg: String): Boolean {
@@ -537,6 +558,12 @@ class LockAccessibilityService : AccessibilityService() {
         if (unsafeCachedAt != 0L && now - unsafeCachedAt <= UNSAFE_CACHE_MS) return
         val browsers = RedirectTargets.browserPackages(context = this)
         browserCache = browsers - AppRules.facebookPackages
+        // Meta's own apps (Instagram, WhatsApp, Workplace...) may claim facebook.com links too;
+        // they are not wrappers and must never be blocked wholesale.
+        wrapperCache = (RedirectTargets.facebookLinkHandlers(this) - browsers - AppRules.facebookPackages - packageName)
+            .filterNot { pkg -> META_PREFIXES.any { pkg.startsWith(it) } }
+            .toSet()
+        if (wrapperCache.isNotEmpty()) Log.d(TAG, "facebook wrappers: $wrapperCache")
         unsafeCache = RedirectTargets.unsafePackages(this, browsers)
         unsafeCachedAt = now
         activeCache = null
@@ -586,6 +613,7 @@ class LockAccessibilityService : AccessibilityService() {
         private const val GO_BACK_CHECK_MS = 800L
         private const val REDIRECT_COOLDOWN_MS = 2000L
         private const val UNSAFE_CACHE_MS = 60_000L
+        private val META_PREFIXES = listOf("com.facebook.", "com.instagram.", "com.whatsapp", "com.oculus.", "com.meta.")
         /** readUrlBar's answer while the user is typing in the URL bar. */
         private const val URL_BEING_EDITED = "\u0000editing"
         private const val TAB_TAP_INTERVAL_MS = 700L

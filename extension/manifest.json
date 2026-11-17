@@ -23,6 +23,12 @@
       "all_frames": false
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html", "blocked.css", "blocked.js", "rules.js", "motivation.js"],
+      "matches": ["*://*.facebook.com/*"]
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Marketplace Lock-In"

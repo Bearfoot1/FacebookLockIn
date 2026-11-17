@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     /** The theme this activity was created with; a different current theme means recreate. */
     private var appliedTheme: LockTheme = LockTheme.HAZARD
     private var proDialog: AlertDialog? = null
+    private var pickerDialog: AlertDialog? = null
 
     private lateinit var statusText: TextView
     private lateinit var statusBar: View
@@ -147,6 +148,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         proDialog?.dismiss()
+        pickerDialog?.dismiss()
         billing.disconnect()
         super.onDestroy()
     }
@@ -188,8 +190,16 @@ class MainActivity : AppCompatActivity() {
         val state = prefs.snapshot()
         val serviceOn = isAccessibilityServiceEnabled()
         val locked = state.enabled && serviceOn
-        statusText.setText(if (state.enabled) R.string.status_on else R.string.status_off)
-        statusText.setTextColor(getColor(if (state.enabled) R.color.text_primary else R.color.danger))
+        // "LOCKED IN" only when the service is actually running; switched on without it
+        // nothing is blocked, so say so.
+        statusText.setText(
+            when {
+                locked -> R.string.status_on
+                state.enabled -> R.string.status_unprotected
+                else -> R.string.status_off
+            },
+        )
+        statusText.setTextColor(getColor(if (locked) R.color.text_primary else R.color.danger))
         statusBar.backgroundTintList = ColorStateList.valueOf(if (locked) LockTheme.accent(this) else getColor(R.color.danger))
         countText.text = state.blockCount.toString()
         serviceText.setText(if (serviceOn) R.string.service_enabled else R.string.service_off_short)
@@ -508,7 +518,8 @@ class MainActivity : AppCompatActivity() {
                 return item
             }
         }
-        MaterialAlertDialogBuilder(this)
+        pickerDialog?.dismiss()
+        pickerDialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.redirect_pick_title)
             .setAdapter(adapter) { _, which ->
                 val pkg = apps[which].packageName
@@ -541,8 +552,10 @@ class MainActivity : AppCompatActivity() {
         } catch (e: SecurityException) {
             null
         }
-        val target = ComponentName(this, LockAccessibilityService::class.java).flattenToString()
-        return enabledServices?.split(':')?.any { it.equals(target, ignoreCase = true) } == true
+        // The system may store the short form (app.lockin.android/.LockAccessibilityService),
+        // so compare parsed component names, not strings.
+        val target = ComponentName(this, LockAccessibilityService::class.java)
+        return enabledServices?.split(':')?.any { ComponentName.unflattenFromString(it.trim()) == target } == true
     }
 
     private fun openAccessibilitySettings() {

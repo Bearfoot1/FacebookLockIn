@@ -28,6 +28,10 @@ Three review passes (commits 662062d, 468f69d and the one after). Fixed, not yet
 - Extension: background tabs.onUpdated backstop for in-app navigation, plus a sweep of open Facebook tabs on install/startup.
 - Reverted: clearing the last tab on Messenger (blocked Message seller -> Back). Known gap kept: a reel/post link opened from Messenger inherits the Marketplace tab.
 
+Round 4 (same day): Facebook wrapper apps (Friendly, Frost, Folio, plus any non-Meta app that opens facebook.com links but not every link) are always blocked; logged as "facebook wrappers: [...]" under LockIn, so check that list on a real phone. The last tab only counts in the app it was seen in. Main screen says NOT PROTECTED when the lock is on but the service is off; service detection accepts the short component name. Backups and phone-to-phone transfer copy nothing (data_extraction_rules.xml). Extension popup warns when Incognito or facebook.com site access isn't allowed (Chrome won't let an extension force either); blocked.html is web-accessible so link-click redirects show the block page.
+
+Not done, needs a phone first: Facebook Lite's tab labels are unknown, so Lite still uses the loose text check (any plain "Marketplace" text allows the screen). Split screen judges only the top app. The block screen ignores system-bar insets (3-button nav may cover the bottom).
+
 Known, not fixed: lapsed Pro is only noticed when the main screen opens (billing not live yet); Chrome Custom Tabs show host only, so they're allowed like Samsung Internet; NOTES' Phone test says the overlay is focusable, but it uses FLAG_NOT_FOCUSABLE now.
 
 ## Redirect apps (2026-11-16)

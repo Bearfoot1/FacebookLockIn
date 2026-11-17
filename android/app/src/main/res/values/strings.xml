@@ -4,6 +4,7 @@
 
     <string name="status_on">LOCKED IN.</string>
     <string name="status_off">UNLOCKED.</string>
+    <string name="status_unprotected">NOT PROTECTED.</string>
     <string name="blocked_label">Distractions\ncrushed</string>
     <string name="app_label_caps">Marketplace Lock-In</string>
     <string name="overlay_tip_label">Seller tip</string>

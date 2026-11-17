@@ -39,6 +39,14 @@
       .danger {
         color: #c0392b;
       }
+      .warn {
+        margin: 0 0 12px;
+        padding: 8px 10px;
+        border: 2px solid #ff3b30;
+        color: #ff3b30;
+        font-size: 13px;
+        line-height: 1.35;
+      }
       .hidden {
         display: none;
       }
@@ -60,6 +68,8 @@
       <p class="status" id="status">Checking…</p>
       <p class="note">Only Facebook Marketplace and the log-in pages are open. Everything else on facebook.com is blocked.</p>
       <p class="note">Locked attempts so far: <span id="count">0</span></p>
+      <p class="warn hidden" id="incognito-warn">Incognito is NOT locked. Open this extension's details page and turn on <b>Allow in Incognito</b>.</p>
+      <p class="warn hidden" id="access-warn">Site access to facebook.com is off, so nothing is locked. Set this extension's site access to <b>On all sites</b> (or facebook.com).</p>
 
       <div class="stack">
         <a class="btn primary" href="https://www.facebook.com/marketplace/" target="_blank" rel="noopener">Open Marketplace</a>
