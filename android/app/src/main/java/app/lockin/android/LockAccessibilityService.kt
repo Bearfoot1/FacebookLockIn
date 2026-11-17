@@ -10,9 +10,11 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
+import android.widget.Toast
 import app.lockin.core.AppRules
 import app.lockin.core.Motivation
 import app.lockin.core.QuoteRotator
+import app.lockin.core.RedirectRules
 import app.lockin.core.TipRotator
 import app.lockin.core.WebRules
 
@@ -21,6 +23,7 @@ import app.lockin.core.WebRules
  *
  * Facebook apps: the visible text of the foreground window goes to AppRules.
  * Browsers: the URL bar text goes to WebRules.
+ * Redirect apps (chosen on the main screen): opening one sends the user to Marketplace.
  *
  * The overlay is shown once per blocked key (the package for the Facebook app, the
  * package plus URL for browsers). Further events for the same blocked screen do not
@@ -37,6 +40,12 @@ class LockAccessibilityService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     /** Label of the bottom tab last seen selected in the Facebook app; null after leaving it. */
     private var lastSelectedTab: String? = null
+    private var lastRedirectPackage: String? = null
+    private var lastRedirectAt = 0L
+    private var lastTabTapAt = 0L
+
+    /** Re-judges the front screen when a Marketplace grace window ends with no new event. */
+    private val graceRecheck = Runnable { reevaluate() }
 
     private val lockListener = LockPrefs.Listener { enabled ->
         if (!enabled) hideOverlay()
@@ -93,7 +102,7 @@ class LockAccessibilityService : AccessibilityService() {
         val roots = frontAppRoots()
         if (roots.isEmpty()) return
         try {
-            evaluate(roots)
+            evaluate(roots, event.eventType)
         } finally {
             roots.forEach { recycleNode(it) }
         }
@@ -133,7 +142,7 @@ class LockAccessibilityService : AccessibilityService() {
         return roots
     }
 
-    private fun evaluate(roots: List<AccessibilityNodeInfo>) {
+    private fun evaluate(roots: List<AccessibilityNodeInfo>, eventType: Int) {
         val pkg = roots.first().packageName?.toString() ?: return
         when {
             pkg == packageName -> Unit
@@ -141,6 +150,13 @@ class LockAccessibilityService : AccessibilityService() {
             pkg == SYSTEM_UI_PACKAGE -> Unit
             AppRules.isFacebookPackage(pkg) -> evaluateFacebook(pkg, roots)
             AppRules.isBrowserPackage(pkg) -> evaluateBrowser(pkg, roots)
+            RedirectRules.shouldRedirect(pkg, activeRedirects()) -> {
+                lastSelectedTab = null
+                hideOverlay()
+                // Only when the app comes to the front, not on every content change
+                // (a picture-in-picture window would otherwise redirect over and over).
+                if (eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) redirect(pkg)
+            }
             // Launcher, other apps: the user has left Facebook and the browsers.
             // Forget the last tab so a link opened later does not inherit Marketplace.
             else -> {
@@ -152,7 +168,7 @@ class LockAccessibilityService : AccessibilityService() {
     }
 
     private fun evaluateFacebook(pkg: String, roots: List<AccessibilityNodeInfo>) {
-        // Messenger is always blocked, so its text is not needed.
+        // Messenger is judged by the owner's toggle alone, so its text is not needed.
         val screen = if (pkg == MESSENGER_PACKAGE) {
             ScreenInfo(emptyList(), null)
         } else {
@@ -160,13 +176,86 @@ class LockAccessibilityService : AccessibilityService() {
             ScreenInfo(parts.flatMap { it.texts }, parts.firstNotNullOfOrNull { it.selectedTab })
         }
         if (screen.selectedTab != null) lastSelectedTab = screen.selectedTab
-        val blocked = AppRules.isBlockedAppScreen(pkg, screen.texts, screen.selectedTab, lastSelectedTab)
+        val blocked = AppRules.isBlockedAppScreen(
+            pkg,
+            screen.texts,
+            screen.selectedTab,
+            lastSelectedTab,
+            blockMessenger = prefs.blockMessenger,
+        )
         // Tab labels and the decision only; screen text stays out of the log.
         Log.d(TAG, "$pkg tab=${screen.selectedTab} last=$lastSelectedTab blocked=$blocked")
-        if (blocked) {
-            showOverlay("app:$pkg")
-        } else {
+        if (!blocked) {
+            // Only reaching Marketplace in Facebook ends the grace window, not an allowed Messenger.
+            if (pkg != MESSENGER_PACKAGE) MarketplaceLauncher.arrived()
             hideOverlay()
+            return
+        }
+        if (MarketplaceLauncher.recentlyRequested()) {
+            // Marketplace was just asked for, but Facebook came back on its old screen
+            // (the link does not switch tabs when Facebook is already running). Tap the
+            // Marketplace tab instead of blocking; block if it is still wrong afterwards.
+            if (pkg == FACEBOOK_PACKAGE) tapMarketplaceTab(roots)
+            handler.removeCallbacks(graceRecheck)
+            handler.postDelayed(graceRecheck, MarketplaceLauncher.GRACE_MS + 150)
+            return
+        }
+        showOverlay("app:$pkg")
+    }
+
+    /** Clicks the Marketplace tab of Facebook's bottom bar, at most every TAB_TAP_INTERVAL_MS. */
+    private fun tapMarketplaceTab(roots: List<AccessibilityNodeInfo>) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastTabTapAt < TAB_TAP_INTERVAL_MS) return
+        for (root in roots) {
+            var tapped = false
+            walkTree(root) { node ->
+                val label = node.contentDescription?.toString()?.let { AppRules.tabLabel(it) }
+                if (label != null && label.equals("Marketplace", ignoreCase = true)) {
+                    tapped = clickSelfOrParent(node)
+                    true
+                } else {
+                    false
+                }
+            }
+            if (tapped) {
+                lastTabTapAt = now
+                Log.d(TAG, "tapped the Marketplace tab")
+                return
+            }
+        }
+    }
+
+    /** Clicks [node], or the nearest clickable parent up to three levels up. */
+    private fun clickSelfOrParent(node: AccessibilityNodeInfo): Boolean {
+        if (node.isClickable) return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        val parents = ArrayList<AccessibilityNodeInfo>()
+        try {
+            var current: AccessibilityNodeInfo? = node.parent
+            repeat(3) {
+                val p = current ?: return false
+                parents += p
+                if (p.isClickable) return p.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                current = p.parent
+            }
+            current?.let { parents += it }
+            return false
+        } finally {
+            parents.forEach { recycleNode(it) }
+        }
+    }
+
+    /** Judges the current front screen without waiting for an event. */
+    private fun reevaluate() {
+        if (!prefs.enabled) return
+        val roots = frontAppRoots()
+        if (roots.isEmpty()) return
+        try {
+            evaluate(roots, AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
+        } catch (e: RuntimeException) {
+            // Keep the current state.
+        } finally {
+            roots.forEach { recycleNode(it) }
         }
     }
 
@@ -277,7 +366,8 @@ class LockAccessibilityService : AccessibilityService() {
             tip = tip,
             blockCount = prefs.snapshot().blockCount + 1,
             onGoBack = { goBack(key) },
-            // Hide first so Marketplace is visible; the next event re-shows it if still blocked.
+            // Hide first so Marketplace is visible. For a few seconds the service taps the
+            // Marketplace tab instead of re-blocking, then blocks again if still wrong.
             onGoMarketplace = {
                 hideOverlay()
                 MarketplaceLauncher.open(this)
@@ -288,6 +378,24 @@ class LockAccessibilityService : AccessibilityService() {
         overlay = view
         shownKey = key
         prefs.recordBlock(quoteIndex, tipIndex)
+    }
+
+    /** Sends the user from a redirect app to Marketplace, at most once per REDIRECT_COOLDOWN_MS per app. */
+    private fun redirect(pkg: String) {
+        val now = SystemClock.uptimeMillis()
+        if (pkg == lastRedirectPackage && now - lastRedirectAt < REDIRECT_COOLDOWN_MS) return
+        lastRedirectPackage = pkg
+        lastRedirectAt = now
+        Log.d(TAG, "redirect $pkg to Marketplace")
+        prefs.recordRedirect()
+        Toast.makeText(this, getString(R.string.redirect_toast, appLabel(pkg)), Toast.LENGTH_SHORT).show()
+        MarketplaceLauncher.open(this)
+    }
+
+    private fun appLabel(pkg: String): String = try {
+        packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+    } catch (e: Exception) {
+        RedirectRules.commonAppFor(pkg)?.name ?: pkg
     }
 
     /**
@@ -312,7 +420,14 @@ class LockAccessibilityService : AccessibilityService() {
     }
 
     private fun isWatched(pkg: String?): Boolean =
-        pkg != null && (AppRules.isFacebookPackage(pkg) || AppRules.isBrowserPackage(pkg))
+        pkg != null && (
+            AppRules.isFacebookPackage(pkg) ||
+                AppRules.isBrowserPackage(pkg) ||
+                RedirectRules.shouldRedirect(pkg, activeRedirects())
+            )
+
+    /** Redirect apps in force: all of them with Pro, the first five without. */
+    private fun activeRedirects(): Set<String> = RedirectRules.activeRedirects(prefs.redirectPackages, prefs.pro)
 
     companion object {
         private const val MAX_NODES = 1500
@@ -320,8 +435,11 @@ class LockAccessibilityService : AccessibilityService() {
         private const val MAX_DEPTH = 30
         private const val CONTENT_THROTTLE_MS = 250L
         private const val GO_BACK_CHECK_MS = 800L
+        private const val REDIRECT_COOLDOWN_MS = 2000L
+        private const val TAB_TAP_INTERVAL_MS = 700L
+        private const val FACEBOOK_PACKAGE = "com.facebook.katana"
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
-        private const val MESSENGER_PACKAGE = "com.facebook.orca"
+        private const val MESSENGER_PACKAGE = AppRules.MESSENGER_PACKAGE
 
         private val KNOWN_URL_BAR_IDS = listOf(
             "com.android.chrome:id/url_bar",

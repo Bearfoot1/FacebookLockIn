@@ -7,7 +7,8 @@ import java.nio.charset.StandardCharsets
 /**
  * Decides which facebook.com URLs the user may view.
  *
- * Only Marketplace, login/recovery/checkpoint pages and legal/help pages are allowed.
+ * Only Marketplace, Messenger (/messages, /messenger; messenger.com is not Facebook and
+ * is never judged), login/recovery/checkpoint pages and legal/help pages are allowed.
  * Non-Facebook URLs are never judged here (they return true), and anything that cannot
  * be parsed fails open, so this object only ever locks Facebook pages.
  */
@@ -19,6 +20,9 @@ object WebRules {
 
     val allowedPathPrefixes: List<String> = listOf(
         "marketplace",
+        // Messenger on the web is never blocked (owner's request, 2026-11-16).
+        "messages",
+        "messenger",
         "login",
         "login.php",
         "checkpoint",
@@ -51,7 +55,7 @@ object WebRules {
         val url = stripInvisible(rawUrl)
         if (url.isBlank()) return false
 
-        // Only text whose own host is Facebook or Messenger is ever judged. A page on
+        // Only text whose own host is Facebook is ever judged. A page on
         // another site, or a search that merely mentions facebook.com, is never locked.
         val uri = parse(url)
         val host = uri?.host
@@ -59,8 +63,8 @@ object WebRules {
         // so it is judged as a Facebook path.
         val isRelativePath = host == null && url.trim().startsWith("/")
         // Unparseable or host-less text fails closed only when it starts with a Facebook
-        // or Messenger host ("m.facebook.com /watch"): that is a bypass attempt, not garbage.
-        if (uri == null || (host == null && !isRelativePath)) return !startsWithFacebookOrMessengerHost(url)
+        // host ("m.facebook.com /watch"): that is a bypass attempt, not garbage.
+        if (uri == null || (host == null && !isRelativePath)) return !startsWithFacebookHost(url)
         if (host != null && !isFacebookHost(host)) return true
 
         val path = uri.path.orEmpty().trimStart('/')
@@ -93,14 +97,15 @@ object WebRules {
 
     /**
      * True when the text's leading host (after any scheme and user info, before the first
-     * path character or space) is Facebook, fb.com or Messenger.
+     * path character or space) is Facebook or fb.com. Messenger is not included: it is
+     * always allowed.
      */
-    private fun startsWithFacebookOrMessengerHost(text: String): Boolean {
+    private fun startsWithFacebookHost(text: String): Boolean {
         val afterScheme = text.trim().substringAfter("://")
         val authority = afterScheme.takeWhile { it !in "/?#\\" && !it.isWhitespace() }
         val host = authority.substringAfterLast('@').substringBefore(':').lowercase().trimEnd('.')
         if (host.isEmpty()) return false
-        return isFacebookHost(host) || listOf("fb.com", "messenger.com").any { host == it || host.endsWith(".$it") }
+        return isFacebookHost(host) || host == "fb.com" || host.endsWith(".fb.com")
     }
 
     /** Marketplace search URL; a blank query yields the bare search page. */

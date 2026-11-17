@@ -13,7 +13,7 @@ object AppRules {
         "com.facebook.pages.app",
     )
 
-    private val browserPackages: Set<String> = setOf(
+    val browserPackages: Set<String> = setOf(
         "com.android.chrome",
         "com.chrome.beta",
         "com.chrome.dev",
@@ -28,6 +28,7 @@ object AppRules {
     )
 
     private const val MARKETPLACE_TITLE = "Marketplace"
+    const val MESSENGER_PACKAGE = "com.facebook.orca"
 
     fun isFacebookPackage(packageName: String): Boolean = packageName in facebookPackages
 
@@ -80,7 +81,8 @@ object AppRules {
 
     /**
      * True when the package is a Facebook app and the screen is not Marketplace.
-     * Messenger is always blocked, even when its texts look like Marketplace.
+     * Messenger is allowed unless [blockMessenger] is true (the owner's toggle, off by
+     * default); when blocked it is blocked on every screen.
      * Non-Facebook packages are never blocked by this rule.
      *
      * [selectedTab] is the label of the selected bottom tab, when a tab bar is on screen.
@@ -96,8 +98,9 @@ object AppRules {
         visibleTexts: List<String>,
         selectedTab: String? = null,
         lastSelectedTab: String? = null,
+        blockMessenger: Boolean = false,
     ): Boolean {
-        if (packageName == "com.facebook.orca") return true
+        if (packageName == MESSENGER_PACKAGE) return blockMessenger
         if (!isFacebookPackage(packageName)) return false
         if (selectedTab != null) return !isMarketplaceTab(selectedTab)
         if (lastSelectedTab != null) return !isMarketplaceTab(lastSelectedTab)

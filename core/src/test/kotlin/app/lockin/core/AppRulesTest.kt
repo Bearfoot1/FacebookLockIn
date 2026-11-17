@@ -63,8 +63,10 @@ class AppRulesTest {
     }
 
     @Test
-    fun messengerBlockedEvenFromMarketplace() {
-        assertTrue(AppRules.isBlockedAppScreen("com.facebook.orca", itemPage, lastSelectedTab = "Marketplace"))
+    fun messengerBlockedEvenFromMarketplaceWhenOptedIn() {
+        assertTrue(
+            AppRules.isBlockedAppScreen("com.facebook.orca", itemPage, lastSelectedTab = "Marketplace", blockMessenger = true),
+        )
     }
 
     @Test
@@ -171,10 +173,23 @@ class AppRulesTest {
     }
 
     @Test
-    fun messengerAlwaysBlocked() {
-        assertTrue(AppRules.isBlockedAppScreen("com.facebook.orca", listOf("Marketplace")))
-        assertTrue(AppRules.isBlockedAppScreen("com.facebook.orca", listOf("Marketplace (1)", "Chats")))
-        assertTrue(AppRules.isBlockedAppScreen("com.facebook.orca", emptyList()))
+    fun messengerAllowedByDefault() {
+        assertFalse(AppRules.isBlockedAppScreen("com.facebook.orca", listOf("Chats")))
+        assertFalse(AppRules.isBlockedAppScreen("com.facebook.orca", emptyList()))
+        assertFalse(AppRules.isBlockedAppScreen("com.facebook.orca", itemPage, lastSelectedTab = "Reels"))
+    }
+
+    @Test
+    fun messengerBlockedOnEveryScreenWhenOptedIn() {
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.orca", listOf("Marketplace"), blockMessenger = true))
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.orca", listOf("Marketplace (1)", "Chats"), blockMessenger = true))
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.orca", emptyList(), blockMessenger = true))
+    }
+
+    @Test
+    fun messengerToggleDoesNotAffectFacebook() {
+        assertTrue(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar, selectedTab = "Reels", blockMessenger = false))
+        assertFalse(AppRules.isBlockedAppScreen("com.facebook.katana", tabBar, selectedTab = "Marketplace", blockMessenger = true))
     }
 
     @Test

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icon mark: a sharp, square-shouldered yellow padlock with a black lightning bolt. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Scaled into the adaptive-icon safe zone and nudged up above the stripe band. -->
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.62" android:scaleY="0.62" android:translateY="-5">
+    <!-- Shackle: square, heavy. -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M41,50 L41,30 L67,30 L67,50"
+        android:strokeColor="#FFE500"
+        android:strokeLineCap="butt"
+        android:strokeLineJoin="miter"
+        android:strokeWidth="8" />
+    <!-- Body. -->
+    <path android:fillColor="#FFE500" android:pathData="M32,47 L76,47 L76,81 L32,81 Z" />
+    <!-- Bolt cut into the body. -->
+    <path android:fillColor="#0A0A0A" android:pathData="M58,51 L44,67 L53,67 L48,78 L64,60 L55,60 L60,51 Z" />
+    </group>
+</vector>

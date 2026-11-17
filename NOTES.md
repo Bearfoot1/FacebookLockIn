@@ -1,6 +1,6 @@
 # Handover notes: facebook-lock-in
 
-Last updated: 2026-11-05 (phone test session). Read this first. The README is the user guide; this file is the status and decisions.
+Last updated: 2026-11-16 (redirect apps added). Read this first. The README is the user guide; this file is the status and decisions.
 
 ## What the project is
 
@@ -12,9 +12,46 @@ Three surfaces:
 | --- | --- | --- |
 | Chrome / Edge extension (desktop) | `extension/` | Built, tested in Chromium |
 | Shared quotes and tips | `shared/motivation.json` → `scripts/generate-motivation.mjs` | Built, generates both platforms |
-| Android core library (pure Kotlin/JVM, the rules) | `core/` | Built, 173 JVM tests pass |
+| Android core library (pure Kotlin/JVM, the rules) | `core/` | Built, 190 JVM tests pass |
 | Android app (AccessibilityService, overlay, UI) | `android/` | Built with Gradle; tested on a real phone (see "Phone test") |
 | Phone browsers (Chrome, Firefox, Samsung, etc. on Android) | `android/` (URL-bar reading in the accessibility service) | Chrome and Samsung Internet tested; Firefox not yet |
+
+## Redirect apps (2026-11-16)
+
+Owner's request: send other distracting apps to Marketplace. The main screen has a "Redirect to Marketplace" card:
+
+- **Common apps**: one switch per app in `RedirectRules.commonApps` (Instagram, TikTok, YouTube, Snapchat, X, Reddit, Threads, Pinterest, Twitch, Netflix, Discord, Tumblr). Only installed ones are listed. All off by default. TikTok has two packages; its switch covers both.
+- **Custom apps**: "Add an app" lists launchable apps (`<queries>` MAIN/LAUNCHER in the manifest, not QUERY_ALL_PACKAGES). Added apps get a Remove button.
+- Stored as one string set, `LockPrefs.redirectPackages` (key `redirect_packages`).
+- **Behaviour**: while the lock is on, a redirect app coming to the front (window state or windows change, never a content change, so a picture-in-picture window can't loop) gets a toast and `MarketplaceLauncher.open`. At most once per 2 s per app. Each redirect adds one to the blocked count. Logged as `redirect <pkg> to Marketplace` under `LockIn`.
+- **Never redirect apps** (`RedirectRules.canRedirect`): Facebook apps, browsers (the Marketplace fallback would loop), Settings, System UI, the package installer.
+- Toggles and the ✕ (remove, custom apps only) need no confirmation phrase, unlike turning the whole lock off. Custom apps are kept in `custom_packages` so switching one off does not delete it; apps from the first redirect build are folded in on read.
+- This is the one place Lock-In acts outside Facebook, and only on apps the owner picked. The 2026-11-06 "only act on Facebook" decision was about browsers judging other sites.
+- Tested on the `rbtest` emulator (Android 15, no Facebook app): YouTube switch and a custom app (Calendar) both redirect to Marketplace (Chrome fallback). Not tested on the S9+ yet.
+
+## Lock-In Pro, themes, icon (2026-11-16)
+
+Owner: "For more than 5 redirects add a subscription of 3$ also add any other premium features like other themes. Also make a dope icon black and yellow."
+
+- **Free:** up to 5 redirect apps switched on at once (`RedirectRules.FREE_REDIRECT_LIMIT`; TikTok's two packages count as one app, `redirectUnits`). A sixth toggle snaps back and opens the upgrade screen; a sixth app from the picker is added switched off. The counter reads "3/5 on" without Pro, "3 on" with it.
+- **Pro ($3/month, assumed monthly):** unlimited redirects + 6 themes (Blood, Toxic, Ice, Venom, Gold, Ghost). Hazard (yellow) stays free.
+- **Lapsed Pro:** the service only honours the first 5 apps (`RedirectRules.activeRedirects`, common apps first, then custom sorted); the theme falls back to Hazard (`LockTheme.current`). Nothing the owner set is deleted.
+- **Billing:** `BillingManager`, Play Billing 7.1.1, subscription product id **`lockin_pro_monthly`**. Pro lives in `LockPrefs.pro`; set true on a purchased sub (acknowledged automatically), set false only when Play answers OK with no active sub, so offline never removes Pro. Price on the buttons comes from Play; "$3" until Play answers.
+- **NOT live yet. To sell it:** publish the app to Google Play (an internal testing track is enough to test purchases), create the subscription `lockin_pro_monthly` at $2.99 or $3.00/month in the Play Console, add license testers. A sideloaded build shows "Google Play billing isn't available on this install". Play's review of the AccessibilityService use (prominent disclosure, policy declaration) is still open and will be the main hurdle.
+- **Debug builds only:** the upgrade screen has "Unlock Pro (debug build only)" / "Lock Pro again" (`LockPrefs.devPro`, never revoked by billing). Tapping the PRO badge opens that screen in debug, and Play's subscription page in release.
+- **Themes:** accent is the theme attribute `lockinAccent` (attrs.xml); every layout, drawable and style uses `?attr/lockinAccent` / `?attr/lockinOnAccent`, `Theme.LockIn.<Name>` overlays set it. MainActivity calls `setTheme` before `super.onCreate` and recreates on change; the block overlay is inflated with the current theme.
+- **Icon:** adaptive (`mipmap-anydpi-v26/ic_launcher(_round).xml`): near-black background with a yellow hazard-stripe band, square-shouldered yellow padlock with a black lightning bolt (`ic_launcher_foreground.xml`, scaled 0.62 into the safe zone), plus a monochrome layer for Android 13 themed icons.
+- Verified on the emulator: locked swatches → upgrade screen, Go Pro on a sideloaded build → "billing not available" toast, debug unlock → PRO badge and "N on", Blood/Toxic themes on the main and block screens, lock Pro again → back to Hazard and "2/5 on", 6th app → upgrade screen, icon in the app drawer. Core tests: 188 pass.
+
+## Sharp redesign and Go to Marketplace fix (2026-11-16)
+
+Owner: "the interface looks terrible", wanted toggles and an intense, sharp, motivational look. Also: Go to Marketplace "stalls and doesn't work if I leave the screen then come back".
+
+- **Look:** no rounded corners anywhere (theme shape overlays, 0dp button radius, square cards with hard 2-3dp edges), `HazardStripeView` (yellow/black diagonal stripes) on the main screen and block screen, condensed bold type, square custom toggles (`switch_track`/`switch_thumb`, tints nulled so Material3 doesn't recolour them). Main screen: LIVE light, huge status, a rotating quote (tap for another), "distractions crushed" score, **Lock-In mode** master toggle (yellow edge when on, red when off), Go to Marketplace, REDIRECTS list with toggle rows. Main screen has `fitsSystemWindows` (Android 15 draws edge to edge).
+- **Master toggle:** on is instant; flipping it off snaps it back and opens the "Quitting already?" phrase card. The old "Turn the lock off" text button is gone.
+- **Go to Marketplace bug (cause, from reading the code):** when Facebook is already running, the Marketplace link only brings Facebook's current screen (the feed) to the front, the service sees a blocked tab and re-shows the overlay at once. Affects the main-screen button, the overlay button and redirects.
+- **Fix:** `MarketplaceLauncher.open` starts a 4 s grace window (`recentlyRequested()`). During it a blocked Facebook screen is not overlaid; instead the service clicks the bottom-bar node labelled "Marketplace, tab N of M" (or its clickable parent, at most every 700 ms). Reaching an allowed screen ends the window (`arrived()`); a recheck runs when it ends, so a still-blocked screen gets the overlay. Logged as `tapped the Marketplace tab`.
+- Verified on the emulator: layout, toggles, phrase card, block screen look, Go to Marketplace from the block screen in a warm Chrome. **Not verified:** the tab-tap fix inside the real Facebook app (needs the S9+).
 
 ## Phone test (2026-11-05)
 
@@ -28,7 +65,7 @@ Galaxy S9+ (SM-G965U1), Android 10, debug APK installed over adb. BlockSite and 
 | Marketplace tab, scrolling | Allowed |
 | Marketplace item page (no tab bar) | Allowed when opened from the Marketplace tab |
 | Reopening Facebook straight onto an item page | Blocked (last tab is forgotten on leaving Facebook); Go to Marketplace recovers |
-| Messenger app | Blocked |
+| Messenger app | Blocked (before 2026-11-16; now allowed unless the toggle is on) |
 | Samsung Internet, any Facebook page | Allowed (host-only URL bar, owner's choice, see decisions) |
 | Chrome: `m.facebook.com/watch/`, `www.facebook.com/` | Blocked (Chrome shows the full path) |
 | Chrome: `www.facebook.com/marketplace/` | Allowed |
@@ -87,7 +124,7 @@ Load the extension in Chrome/Edge: `chrome://extensions` → Developer mode → 
 
 - **Browser lock = `declarativeNetRequest` with `urlFilter`, not regex.** Chrome caps each regex rule at 2 KB compiled; the allow-list regex hit that limit. `||facebook.com/marketplace^` uses the `^` separator, so `/marketplacefake` is not allowed.
 - **Trailing-dot hosts** (`www.facebook.com.`) are treated as the same host in both the JS check and the DNR rules.
-- **Messenger is always blocked**: `facebook.com/messages` and `messenger.com` (and the Messenger app `com.facebook.orca` on Android). Marketplace buyer chats are under `/messages`, so buyers can't be answered through the web. Adding `messages` to `ALLOWED_PATH_PREFIXES` opens every chat.
+- **Messenger app (Android) is allowed by default** (owner's request, 2026-11-16: "I don't want it to block messenger app automatically"). A "Block Messenger" toggle on the main screen (`LockPrefs.blockMessenger`, off by default) blocks `com.facebook.orca` on every screen; `AppRules.isBlockedAppScreen(..., blockMessenger)`. An allowed Messenger does not end the Marketplace grace window. **Messenger on the web is never blocked** (owner, 2026-11-16: "Dont block the browser version of messenger at all"): `messages` and `messenger` are allowed path prefixes in both `WebRules` and `extension/rules.js`; messenger.com is no longer in the extension's DNR block rules or the Android fail-closed host check. The Block Messenger toggle covers the app only. Marketplace buyer chats are under `/messages`, so buyers can't be answered through the web. Adding `messages` to `ALLOWED_PATH_PREFIXES` opens every chat.
 - **In-app navigation** (Facebook is a single-page app): an isolated content script cannot see the page's `pushState`, so `main-world.js` runs in the page world and dispatches an event. The content script then asks the background worker to move the tab. Extension pages are not web-accessible, so the redirect cannot come from the page itself.
 - **Fail closed**: if storage can't be read, the lock stays on. The content script waits for the stored flag before enforcing, so an "off" lock is never briefly enforced.
 - **Turning off** needs the exact phrase `I choose distraction`. This is a speed bump, not security: a user can still disable the extension in `chrome://extensions` or uninstall the app.
@@ -122,10 +159,12 @@ Builds with Gradle 8.11.1, AGP 8.7.3, Kotlin 2.1.20, JDK 17 (`./gradlew :app:ass
 
 ## Next steps
 
+00. To charge for Pro: Play Console listing, internal testing track, subscription `lockin_pro_monthly` ($3/month), license testers, accessibility policy declaration. Then a release build signed with an upload key (none exists yet).
+0. On the S9+ with the real Facebook app: open Facebook on the feed, leave, come back, press Go to Marketplace (block screen and main screen); check `adb logcat -s LockIn` for "tapped the Marketplace tab". Same for a redirect app.
 1. Test Firefox URL bar reading.
 2. Test opening a Marketplace item from a notification or shared link.
 3. Confirm the allowed legal and recovery URLs on facebook.com.
-4. Decide whether to allow `/messages` for Marketplace buyers on the web. (In the Facebook app, the Marketplace chat inbox is reachable from Selling > Inbox and allowed.)
+4. ~~Decide whether to allow `/messages` on the web~~ Done 2026-11-16: allowed. (In the Facebook app, the Marketplace chat inbox is reachable from Selling > Inbox and allowed.)
 5. Repo: https://github.com/Bearfoot1/FacebookLockIn (branch main, remote origin). Local clone on the owner's PC: `Documents\GitHub\FacebookLockIn`.
 
 ## Files
@@ -134,7 +173,7 @@ Builds with Gradle 8.11.1, AGP 8.7.3, Kotlin 2.1.20, JDK 17 (`./gradlew :app:ass
 extension/        Chrome/Edge extension (load unpacked)
 shared/           motivation.json (quotes and tips, single source)
 scripts/          generate-motivation.mjs
-core/             Kotlin library: WebRules, AppRules, QuoteRotator, TipRotator, Motivation (generated), LockState
+core/             Kotlin library: WebRules, AppRules, RedirectRules, QuoteRotator, TipRotator, Motivation (generated), LockState
 android/          Android app source (unverified build)
 tests/            rules.test.mjs (unit), e2e.mjs (Chromium)
 README.md         user guide

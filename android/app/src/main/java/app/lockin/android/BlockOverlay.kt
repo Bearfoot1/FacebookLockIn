@@ -33,7 +33,7 @@ class BlockOverlay(
 ) {
     private val windowManager: WindowManager =
         checkNotNull(service.getSystemService(WindowManager::class.java)) { "WindowManager unavailable" }
-    private val themed = ContextThemeWrapper(service, R.style.Theme_LockIn)
+    private val themed = ContextThemeWrapper(service, LockTheme.current(LockPrefs(service)).styleRes)
     private val root: View = LayoutInflater.from(themed).inflate(R.layout.block_overlay, null)
     private var attached = false
 

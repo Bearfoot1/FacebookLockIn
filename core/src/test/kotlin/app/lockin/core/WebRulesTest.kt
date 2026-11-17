@@ -46,6 +46,13 @@ class WebRulesTest {
             "https://www.facebook.com/marketplace#top",
             "https://evil.example@www.facebook.com/marketplace/",
             "facebook.com/marketplace/",
+            // Messenger on the web is allowed (2026-11-16).
+            "https://www.facebook.com/messages/t/123",
+            "https://www.facebook.com/messages/",
+            "https://m.facebook.com/messages/read/?tid=1",
+            "https://www.facebook.com/messenger/",
+            "https://www.messenger.com/t/1",
+            "https://messenger.com/",
         ]
     )
     fun allowsMarketplaceLoginAndLegalUrls(url: String) {
@@ -69,8 +76,6 @@ class WebRulesTest {
             "https://www.facebook.com/reels/",
             "https://www.facebook.com/watch/?v=123",
             "https://www.facebook.com/groups/somegroup/",
-            "https://www.facebook.com/messages/t/123",
-            "https://www.facebook.com/messenger/",
             "https://www.facebook.com/search/top/?q=cats",
             "https://www.facebook.com/someprofile",
             "https://www.facebook.com/profile.php?id=100",
@@ -90,7 +95,7 @@ class WebRulesTest {
             "facebook.com",
         ]
     )
-    fun locksFeedReelsGroupsMessengerAndLookalikes(url: String) {
+    fun locksFeedReelsGroupsAndLookalikes(url: String) {
         assertFalse(WebRules.isAllowedUrl(url), "expected locked: $url")
         assertTrue(WebRules.isLockedUrl(url), "expected locked: $url")
     }
@@ -142,7 +147,7 @@ class WebRulesTest {
     fun allowedPathPrefixesMatchSpec() {
         assertEquals(
             listOf(
-                "marketplace", "login", "login.php", "checkpoint", "recover",
+                "marketplace", "messages", "messenger", "login", "login.php", "checkpoint", "recover",
                 "two_step_verification", "help", "policies", "privacy", "terms", "cookies",
             ),
             WebRules.allowedPathPrefixes,

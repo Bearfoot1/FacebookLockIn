@@ -45,7 +45,6 @@ test('home feed, reels, groups, messages, search and profiles are locked', () =>
   assert.equal(R.isLockedUrl('https://www.facebook.com/reel/123'), true);
   assert.equal(R.isLockedUrl('https://www.facebook.com/watch/'), true);
   assert.equal(R.isLockedUrl('https://www.facebook.com/groups/abc'), true);
-  assert.equal(R.isLockedUrl('https://www.facebook.com/messages/t/1'), true);
   assert.equal(R.isLockedUrl('https://www.facebook.com/search/top?q=x'), true);
   assert.equal(R.isLockedUrl('https://www.facebook.com/someprofile'), true);
   assert.equal(R.isLockedUrl('https://m.facebook.com/'), true);
@@ -136,7 +135,7 @@ test('pickQuoteIndex stays in range at the top of the random range', () => {
 test('DNR block rules redirect main-frame loads to the block page', () => {
   const rules = plain(R.buildDnrRules('/blocked.html'));
   const blocks = rules.filter((r) => r.action.type === 'redirect');
-  assert.deepEqual(blocks.map((b) => b.condition.urlFilter), ['||facebook.com^', '||facebook.com.^', '||messenger.com^', '||messenger.com.^']);
+  assert.deepEqual(blocks.map((b) => b.condition.urlFilter), ['||facebook.com^', '||facebook.com.^']);
   for (const block of blocks) {
     assert.equal(block.action.redirect.extensionPath, '/blocked.html');
     assert.deepEqual(block.condition.resourceTypes, ['main_frame']);
@@ -151,13 +150,14 @@ test('trailing-dot hosts are treated as the same Facebook host', () => {
   assert.equal(R.isLockedUrl('https://facebook.com.evil.test./groups/x'), false);
 });
 
-test('messenger.com is always locked, whatever the path', () => {
-  assert.equal(R.isMessengerHost('www.messenger.com'), true);
-  assert.equal(R.isMessengerHost('messenger.com.'), true);
-  assert.equal(R.isMessengerHost('notmessenger.com'), false);
-  assert.equal(R.isLockedUrl('https://www.messenger.com/t/1'), true);
-  assert.equal(R.isLockedUrl('https://messenger.com/'), true);
-  assert.equal(R.isLockedUrl('https://example.com/messenger.com'), false);
+test('Messenger on the web is never locked', () => {
+  assert.equal(R.isLockedUrl('https://www.messenger.com/t/1'), false);
+  assert.equal(R.isLockedUrl('https://messenger.com/'), false);
+  assert.equal(R.isLockedUrl('https://www.facebook.com/messages/t/1'), false);
+  assert.equal(R.isLockedUrl('https://m.facebook.com/messages/read/?tid=1'), false);
+  assert.equal(R.isLockedUrl('https://www.facebook.com/messenger/'), false);
+  // Lookalike paths stay locked.
+  assert.equal(R.isLockedUrl('https://www.facebook.com/messagesfake/'), true);
 });
 
 // Model of Chrome's urlFilter syntax, used to check the DNR rules without a browser.
@@ -216,8 +216,10 @@ test('DNR urlFilter rules agree with the JS allowlist on sample URLs', () => {
   // Trailing-dot Facebook hosts: blocked by DNR unless the path is allowed, same as the JS check.
   assert.equal(dnrBlocked('https://www.facebook.com./groups/x'), true);
   assert.equal(dnrBlocked('https://www.facebook.com./marketplace/'), false);
-  // Messenger is blocked by DNR on any path.
-  assert.equal(dnrBlocked('https://www.messenger.com/t/1'), true);
+  // Messenger on the web is never blocked: not messenger.com, not facebook.com/messages.
+  assert.equal(dnrBlocked('https://www.messenger.com/t/1'), false);
+  assert.equal(dnrBlocked('https://www.facebook.com/messages/t/1'), false);
+  assert.equal(dnrBlocked('https://www.facebook.com/messagesfake/'), true);
 });
 
 test('DNR allow rules: one per allowed prefix, each with higher priority than the block rule', () => {

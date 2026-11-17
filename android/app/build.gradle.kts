@@ -15,7 +15,16 @@ android {
         versionName = "0.1.0"
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     buildTypes {
+        debug {
+            // Shrunk so the test APK stays small enough to share (the billing library adds ~3 MB).
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+        }
         release {
             isMinifyEnabled = false
         }
@@ -32,6 +41,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
 }
 
 kotlin {

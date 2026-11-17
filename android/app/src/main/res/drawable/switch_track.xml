@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Square toggle track: solid yellow when on, hollow grey box when off. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ink" />
+            <stroke android:width="2dp" android:color="@color/surface_line" />
+            <size android:width="64dp" android:height="32dp" />
+        </shape>
+    </item>
+    <item android:state_checked="true">
+        <shape android:shape="rectangle">
+            <solid android:color="?attr/lockinAccent" />
+            <size android:width="64dp" android:height="32dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ink" />
+            <stroke android:width="2dp" android:color="@color/text_muted" />
+            <size android:width="64dp" android:height="32dp" />
+        </shape>
+    </item>
+</selector>

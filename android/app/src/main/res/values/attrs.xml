@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The theme's accent (yellow in the free theme) and the text colour on top of it. -->
+    <attr name="lockinAccent" format="color" />
+    <attr name="lockinOnAccent" format="color" />
+</resources>

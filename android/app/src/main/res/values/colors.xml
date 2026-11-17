@@ -10,4 +10,11 @@
     <color name="on_accent">#FF0A0A0A</color>
     <color name="danger">#FFFF3B30</color>
     <color name="ok">#FF34C759</color>
+    <!-- Pro theme accents. -->
+    <color name="theme_blood">#FFFF2D2D</color>
+    <color name="theme_toxic">#FF39FF14</color>
+    <color name="theme_ice">#FF00E5FF</color>
+    <color name="theme_venom">#FFFF2FD1</color>
+    <color name="theme_gold">#FFD4AF37</color>
+    <color name="theme_ghost">#FFFFFFFF</color>
 </resources>

@@ -8,7 +8,7 @@ When it is on, the only parts of Facebook you can use are:
 - **Log-in pages**: `/login`, `/login.php`, `/checkpoint`, `/recover`, `/two_step_verification`
 - **Legal and help pages**: `/help`, `/policies`, `/privacy`, `/terms`, `/cookies`
 
-Everything else on facebook.com is blocked, including the home feed, Reels, Watch, Groups, Messenger, search, and profiles. In-app navigation (Facebook's single-page routing) is caught too, not just full page loads.
+Everything else on facebook.com is blocked, including the home feed, Reels, Watch, Groups, search, and profiles. Messenger is never blocked on the web (`facebook.com/messages` and `messenger.com`). In-app navigation (Facebook's single-page routing) is caught too, not just full page loads.
 
 When something is blocked you get a block page with:
 
@@ -46,7 +46,7 @@ Privacy: nothing leaves your browser. The extension makes no network requests of
 
 - **Not the Facebook mobile app.** Chrome extensions only control the browser. The app on a phone is not covered.
 - **Turning off the extension in `chrome://extensions` still works.** A browser extension cannot stop its own user from disabling it. The typed confirmation is a speed bump, not a lock.
-- **Messenger is blocked everywhere**, on `facebook.com/messages` and on `messenger.com`. Marketplace buyer chats live under `/messages`, so you cannot reply to buyers through the web. If you need that, add `messages` to `ALLOWED_PATH_PREFIXES` in `extension/rules.js`. That also opens every other chat.
+- **Messenger on the web is never blocked**: `facebook.com/messages`, `facebook.com/messenger` and `messenger.com` all stay open, so you can answer Marketplace buyers. On Android the Messenger app is allowed too unless you switch on "Block Messenger".
 - **Logged-out visitors get the block page on `facebook.com/`**, because the login form is on the home page. Going to Marketplace still works, and it redirects to the login page.
 - **Log in with Facebook on other sites is blocked** because it uses `facebook.com/dialog/oauth`. Turn the lock off while you do that.
 - **Only the browser is covered.** Other browsers and profiles need the extension installed separately.

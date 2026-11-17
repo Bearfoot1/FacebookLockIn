@@ -10,10 +10,14 @@
 
   // Paths that stay usable. Everything else on facebook.com is locked.
   //  - marketplace: browsing, item pages, search, selling
+  //  - messages / messenger: Messenger on the web is never blocked (owner, 2026-11-16);
+  //    messenger.com is not Facebook, so it is never touched either
   //  - login / checkpoint / recover / two-factor: you cannot log in without them
   //  - help / policies / privacy / terms / cookies: legal and support pages
   var ALLOWED_PATH_PREFIXES = [
     'marketplace',
+    'messages',
+    'messenger',
     'login',
     'login.php',
     'checkpoint',
@@ -35,7 +39,6 @@
   //    /marketplace?query=, but not /marketplacefake.
   // Each filter comes in a normal and a trailing-dot form ("facebook.com." is the same host).
   var FACEBOOK_URL_FILTERS = ['||facebook.com^', '||facebook.com.^'];
-  var MESSENGER_URL_FILTERS = ['||messenger.com^', '||messenger.com.^'];
   var ALLOW_URL_FILTERS = [];
   ALLOWED_PATH_PREFIXES.forEach(function (prefix) {
     ALLOW_URL_FILTERS.push('||facebook.com/' + prefix + '^');
@@ -59,18 +62,11 @@
     return FACEBOOK_HOST_RE.test(normalizeHost(hostname));
   }
 
-  // Messenger has its own domain. It is always locked, whatever the path.
-  function isMessengerHost(hostname) {
-    var host = normalizeHost(hostname);
-    return host === 'messenger.com' || /\.messenger\.com$/.test(host);
-  }
-
   // Returns true if the URL may be viewed while the lock is on.
   function isAllowedUrl(input) {
     var url = parseUrl(input);
     if (!url) return true; // unparseable input is not a Facebook page we can lock
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return true; // not ours to lock
-    if (isMessengerHost(url.hostname)) return false;
     if (!isFacebookHost(url.hostname)) return true; // not Facebook
     var first = url.pathname.split('/').filter(Boolean)[0];
     if (!first) return false; // the home feed
@@ -123,8 +119,8 @@
     var target = blockPageExtensionPath || '/blocked.html';
     var rules = [];
     var nextId = 1;
-    // Block rules (priority 1): redirect every main-frame load of Facebook or Messenger.
-    FACEBOOK_URL_FILTERS.concat(MESSENGER_URL_FILTERS).forEach(function (filter) {
+    // Block rules (priority 1): redirect every main-frame load of Facebook.
+    FACEBOOK_URL_FILTERS.forEach(function (filter) {
       rules.push({
         id: nextId++,
         priority: 1,
@@ -154,9 +150,7 @@
   var api = {
     ALLOWED_PATH_PREFIXES: ALLOWED_PATH_PREFIXES,
     FACEBOOK_URL_FILTERS: FACEBOOK_URL_FILTERS,
-    MESSENGER_URL_FILTERS: MESSENGER_URL_FILTERS,
     ALLOW_URL_FILTERS: ALLOW_URL_FILTERS,
-    isMessengerHost: isMessengerHost,
     dnrRuleIds: dnrRuleIds,
     MARKETPLACE_URL: MARKETPLACE_URL,
     QUOTES: QUOTES,

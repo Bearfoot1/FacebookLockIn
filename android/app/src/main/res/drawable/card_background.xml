@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Sharp dark block with a hard edge. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="@color/surface" />
-    <corners android:radius="8dp" />
+    <stroke android:width="2dp" android:color="@color/surface_line" />
 </shape>

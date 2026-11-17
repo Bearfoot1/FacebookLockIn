@@ -12,8 +12,8 @@ class FailClosedTest {
     }
 
     @Test
-    fun `unparseable Messenger text is locked`() {
-        assertTrue(WebRules.isLockedUrl("https://www.messenger.com/t/1 x"))
+    fun `Messenger text is never locked, even unparseable`() {
+        assertFalse(WebRules.isLockedUrl("https://www.messenger.com/t/1 x"))
     }
 
     @Test

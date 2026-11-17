@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Always dark: the bold look does not change with the phone's theme. -->
+    <!-- Always dark and sharp: no rounded corners anywhere. -->
     <style name="Theme.LockIn" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="lockinAccent">@color/accent</item>
+        <item name="lockinOnAccent">@color/on_accent</item>
         <item name="colorPrimary">@color/accent</item>
         <item name="colorOnPrimary">@color/on_accent</item>
         <item name="colorSecondary">@color/accent</item>
@@ -13,62 +15,144 @@
         <item name="android:navigationBarColor">@color/ink</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="colorControlActivated">@color/accent</item>
-        <item name="android:textColorHighlight">#66FFE500</item>
+        <item name="shapeAppearanceCornerExtraSmall">@style/LockIn.Shape.Sharp</item>
+        <item name="shapeAppearanceCornerSmall">@style/LockIn.Shape.Sharp</item>
+        <item name="shapeAppearanceCornerMedium">@style/LockIn.Shape.Sharp</item>
+        <item name="shapeAppearanceCornerLarge">@style/LockIn.Shape.Sharp</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/LockIn.Shape.Sharp</item>
     </style>
 
-    <!-- Big yellow block button with black text. -->
+    <!-- Pro themes: same look, different accent. -->
+    <style name="Theme.LockIn.Blood">
+        <item name="lockinAccent">@color/theme_blood</item>
+        <item name="colorPrimary">@color/theme_blood</item>
+        <item name="colorSecondary">@color/theme_blood</item>
+        <item name="colorControlActivated">@color/theme_blood</item>
+    </style>
+
+    <style name="Theme.LockIn.Toxic">
+        <item name="lockinAccent">@color/theme_toxic</item>
+        <item name="colorPrimary">@color/theme_toxic</item>
+        <item name="colorSecondary">@color/theme_toxic</item>
+        <item name="colorControlActivated">@color/theme_toxic</item>
+    </style>
+
+    <style name="Theme.LockIn.Ice">
+        <item name="lockinAccent">@color/theme_ice</item>
+        <item name="colorPrimary">@color/theme_ice</item>
+        <item name="colorSecondary">@color/theme_ice</item>
+        <item name="colorControlActivated">@color/theme_ice</item>
+    </style>
+
+    <style name="Theme.LockIn.Venom">
+        <item name="lockinAccent">@color/theme_venom</item>
+        <item name="colorPrimary">@color/theme_venom</item>
+        <item name="colorSecondary">@color/theme_venom</item>
+        <item name="colorControlActivated">@color/theme_venom</item>
+    </style>
+
+    <style name="Theme.LockIn.Gold">
+        <item name="lockinAccent">@color/theme_gold</item>
+        <item name="colorPrimary">@color/theme_gold</item>
+        <item name="colorSecondary">@color/theme_gold</item>
+        <item name="colorControlActivated">@color/theme_gold</item>
+    </style>
+
+    <style name="Theme.LockIn.Ghost">
+        <item name="lockinAccent">@color/theme_ghost</item>
+        <item name="colorPrimary">@color/theme_ghost</item>
+        <item name="colorSecondary">@color/theme_ghost</item>
+        <item name="colorControlActivated">@color/theme_ghost</item>
+    </style>
+
+    <style name="LockIn.Shape.Sharp" parent="">
+        <item name="cornerFamily">cut</item>
+        <item name="cornerSize">0dp</item>
+    </style>
+
+    <!-- Big yellow slab with heavy black type. -->
     <style name="LockIn.Button.Primary" parent="Widget.Material3.Button">
-        <item name="android:minHeight">64dp</item>
+        <item name="android:minHeight">68dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
-        <item name="backgroundTint">@color/accent</item>
-        <item name="android:textColor">@color/on_accent</item>
-        <item name="android:textSize">17sp</item>
-        <item name="android:fontFamily">sans-serif-black</item>
-        <item name="android:letterSpacing">0.06</item>
+        <item name="backgroundTint">?attr/lockinAccent</item>
+        <item name="android:textColor">?attr/lockinOnAccent</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
         <item name="android:textAllCaps">true</item>
-        <item name="cornerRadius">6dp</item>
+        <item name="cornerRadius">0dp</item>
     </style>
 
-    <!-- Outlined secondary button. -->
+    <!-- Hard white outline. -->
     <style name="LockIn.Button.Outline" parent="Widget.Material3.Button.OutlinedButton">
-        <item name="android:minHeight">56dp</item>
+        <item name="android:minHeight">58dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
         <item name="android:textColor">@color/text_primary</item>
-        <item name="strokeColor">@color/surface_line</item>
+        <item name="strokeColor">@color/text_primary</item>
         <item name="strokeWidth">2dp</item>
-        <item name="android:textSize">15sp</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
         <item name="android:textAllCaps">true</item>
-        <item name="android:letterSpacing">0.05</item>
-        <item name="cornerRadius">6dp</item>
+        <item name="android:letterSpacing">0.1</item>
+        <item name="cornerRadius">0dp</item>
     </style>
 
     <!-- Plain text button. -->
     <style name="LockIn.Button.Text" parent="Widget.Material3.Button.TextButton">
         <item name="android:textColor">@color/text_muted</item>
         <item name="android:textSize">15sp</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="cornerRadius">0dp</item>
     </style>
 
-    <!-- Small yellow caps label ("MARKETPLACE LOCK-IN", "TIP"). -->
+    <!-- Square toggle: yellow slab with a black knob when on. -->
+    <style name="LockIn.Switch" parent="">
+        <item name="android:thumb">@drawable/switch_thumb</item>
+        <item name="track">@drawable/switch_track</item>
+        <item name="switchMinWidth">64dp</item>
+        <item name="showText">false</item>
+        <item name="thumbTint">@null</item>
+        <item name="trackTint">@null</item>
+        <item name="android:background">@null</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Small yellow caps label. -->
     <style name="LockIn.Label" parent="">
-        <item name="android:textColor">@color/accent</item>
+        <item name="android:textColor">?attr/lockinAccent</item>
         <item name="android:textSize">13sp</item>
-        <item name="android:fontFamily">sans-serif-black</item>
-        <item name="android:letterSpacing">0.18</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.22</item>
         <item name="android:textAllCaps">true</item>
     </style>
 
-    <!-- Huge headline ("NOT TODAY.", "LOCKED IN."). -->
+    <!-- Huge condensed headline ("LOCKED IN.", "NOT TODAY."). -->
     <style name="LockIn.Headline" parent="">
         <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">52sp</item>
-        <item name="android:fontFamily">sans-serif-black</item>
-        <item name="android:letterSpacing">-0.02</item>
-        <item name="android:lineSpacingMultiplier">0.9</item>
+        <item name="android:textSize">76sp</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.03</item>
+        <item name="android:lineSpacingMultiplier">0.85</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <!-- Section title ("REDIRECTS"). -->
+    <style name="LockIn.Title" parent="">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">30sp</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
         <item name="android:includeFontPadding">false</item>
     </style>
 </resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icon background: near-black with a band of hazard stripes below the padlock. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#0A0A0A" android:pathData="M0,0h108v108h-108z" />
+    <path
+        android:fillColor="#FFE500"
+        android:pathData="M-8,80 L0,72 L7,72 L-1,80 Z M6,80 L14,72 L21,72 L13,80 Z M20,80 L28,72 L35,72 L27,80 Z M34,80 L42,72 L49,72 L41,80 Z M48,80 L56,72 L63,72 L55,80 Z M62,80 L70,72 L77,72 L69,80 Z M76,80 L84,72 L91,72 L83,80 Z M90,80 L98,72 L105,72 L97,80 Z M104,80 L112,72 L119,72 L111,80 Z M118,80 L126,72 L133,72 L125,80 Z" />
+</vector>
