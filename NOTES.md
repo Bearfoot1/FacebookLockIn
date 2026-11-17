@@ -22,9 +22,9 @@ Three review passes (commits 662062d, 468f69d and the one after). Fixed, not yet
 
 - Redirect apps: cooldown retry (only for the focused full-screen app, never PiP); uninstalled/unsafe apps don't use free slots; rows show Redirecting / Paused · Pro only / Can't redirect / Not installed; browsers, home screen and dialer are never redirected (RedirectTargets).
 - Picture-in-picture windows are skipped when finding the front app (a floating video used to leave Facebook unjudged).
-- Tab bar parsing accepts any language (); the text fallback ignores any  entry, so an unrecognised tab format blocks instead of allowing every screen.
+- Tab bar parsing accepts any language ("Marketplace, pestaña 4 de 6"); the text fallback ignores any "Marketplace, ..." entry, so an unrecognised tab format blocks instead of allowing every screen.
 - Browsers: an unreadable URL bar (hidden while scrolling) or a focused one (user typing) keeps the current state instead of hiding the overlay. Any app that opens https links is judged as a browser (Kiwi, Firefox Nightly...). Throttled content changes get a trailing recheck.
-- Allowed:  and  (outbound link shim; its target is judged on load), in both WebRules.kt and rules.js.
+- Allowed: logout.php and l.php (outbound link shim; its target is judged on load), in both WebRules.kt and rules.js.
 - Extension: background tabs.onUpdated backstop for in-app navigation, plus a sweep of open Facebook tabs on install/startup.
 - Reverted: clearing the last tab on Messenger (blocked Message seller -> Back). Known gap kept: a reel/post link opened from Messenger inherits the Marketplace tab.
 
